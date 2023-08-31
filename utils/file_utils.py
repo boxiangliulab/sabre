@@ -66,33 +66,46 @@ class Bamline:
 
 
 class Read:
-    def __init__(self, umi_barcode:str, bamline_list:list[Bamline]) -> None:
+    def __init__(self, umi_barcode:str, bamline_list:list[Bamline], qual_threshold=10) -> None:
         self.umi_barcode = umi_barcode
         self.bamline_list = bamline_list
+        self.qual_threshold = qual_threshold
 
+        self.extract_read_seq()
         self.filter_seq_by_quality()
-        self.adjust_read_seq()
+        if len(self.read_seqs) > 1:
+            self.merge_seqs()
 
     def extract_read_seq(self):
         '''
         Extract seq and span from each bamline, then 
         '''
         self.read_seqs = []
+        self.read_quals = []
         self.read_spans = []
         for bamline in self.bamline_list:
-            temp_read_seq, temp_read_span = Read.adjust_read_seq(bamline)
+            temp_read_seq, temp_qual_seq, temp_read_span = Read.adjust_read_seq(bamline)
+            self.read_seqs += temp_read_seq
+            self.read_quals += temp_qual_seq
+            self.read_spans += temp_read_span
 
     def filter_seq_by_quality(self):
         '''
         We first filter the read by quality
         Any read base pair with QUAL lower than a given quality threshold will be replaced by '.'
         '''
-        temp_seq = ''
-        for i, q in enumerate(self.qual):
-            if ord(q) - 33 < self.qual_threshold:
-                temp_seq += '.'
-            else:
-                temp_seq += self.seq[i]
+        filtered_seqs = []
+
+        for seq, qual in zip(self.read_seqs, self.read_quals):
+            temp_seq = ''
+            for i, q in enumerate(qual):
+                if ord(q) - 33 < self.qual_threshold:
+                    temp_seq += '.'
+                else:
+                    temp_seq += seq[i]
+            filtered_seqs.append(temp_seq)
+
+        self.read_seqs = filtered_seqs
 
     def adjust_read_seq(line:Bamline):
         '''
@@ -103,11 +116,12 @@ class Read:
         Also, to map alleles onto reads, another preprocess need to be implemented.
         '''
         adjusted_read_seq = []
+        adjusted_qual_seq = []
         spans = []
         current_cigar_number = 0
         genome_pointer = int(line.col_pos)
-        seq_pointer = genome_pointer
-        for char in line.cigar:
+        seq_pointer = 0
+        for char in line.col_cigar:
             if char in '0123456789':
                 current_cigar_number = current_cigar_number*10 + int(char)
             else:
@@ -120,7 +134,8 @@ class Read:
                     # match
                     # consumes query and reference
                     # put the corresponding seq to the adjusted_read_seq, and adjust read_pointer
-                    adjusted_read_seq.append(line.seq[seq_pointer:seq_pointer+current_cigar_number])
+                    adjusted_read_seq.append(line.col_seq[seq_pointer:seq_pointer+current_cigar_number])
+                    adjusted_qual_seq.append(line.col_qual[seq_pointer:seq_pointer+current_cigar_number])
                     # [a, b] closed intervals
                     spans.append((genome_pointer, genome_pointer+current_cigar_number-1))
                     seq_pointer += current_cigar_number
@@ -139,7 +154,53 @@ class Read:
                 # No operations on "H" nor "P", cuz neither "H" nor "P" consumes neither
                 current_cigar_number = 0
         
-        return adjusted_read_seq, spans
+        return adjusted_read_seq, adjusted_qual_seq, spans
+    
+    def merge_read_with_qual(read_pair, span_pair, qual_pair):
+        '''
+        merge a pair of reads, the final base pair is determined by corresponding quality
+
+        span_pair: [a, b], [c, d]
+        where a <= c <= b
+        '''
+        read_1, read_2 = read_pair
+        (a, b), (c, d) = span_pair
+        qual_1, qual_2 = qual_pair
+
+        conflict_reads = ''
+        conflict_quals = ''
+        # overlapping area
+        for i in range(c, min(b, d) + 1):
+            base_1, q_1 = read_1[i-a], qual_1[i-a]
+            base_2, q_2 = read_2[i-c], qual_2[i-c]
+            conflict_reads += base_1 if q_1 > q_2 else base_2
+            conflict_quals += max(q_1, q_2)
+
+        return read_1[:c-a]+conflict_reads+read_2[b-c+1:d-c+1] if d>b else read_1[d-a+1:b-a+1], \
+        qual_1[:c-a]+conflict_quals+qual_2[b-c+1:d-c+1] if d>b else qual_1[d-a+1:b-a+1], (a, max(b, d))
+
+    
+    def merge_seqs(self):
+        '''
+        merge reads with overlapping spans.
+        '''
+        merge_result = []
+        mixed_input = list(zip(self.read_seqs, self.read_quals, self.read_spans))
+        mixed_input = sorted(mixed_input, key=lambda x: x[2][0], reverse=True)
+        while len(mixed_input) > 1:
+            (read_1, qual_1, span_1) = mixed_input.pop()
+            (read_2, qual_2, span_2) = mixed_input.pop()
+            if span_2[0] > span_1[1]:
+                # no overlap
+                merge_result.append((read_1, qual_1, span_1))
+                mixed_input.append((read_2, qual_2, span_2))
+            else:
+                # share overlap
+                mixed_input.append(Read.merge_read_with_qual((read_1, read_2), (span_1, span_2), (qual_1, qual_2)))
+        
+        merge_result += mixed_input
+        self.read_seqs, self.read_quals, self.read_spans = list(zip(*merge_result))
+
 
     def get_base_pair_by_var_pos(self, var_pos):
         '''
@@ -329,15 +390,15 @@ def generate_reads(opt, output_sam_path):
     together with operations for calculating spans of the read.
     '''
     umibarcode_line_map = collections.defaultdict(list)
-    sam_file = pd.read_csv(output_sam_path, sep='\t', index_col=None, header=None)
-    sam_file = sam_file.to_numpy().tolist()
+    sam_file = open(output_sam_path, mode='r')
     alignment_scores = []
-    for columns in sam_file:
+    for line in sam_file.readlines():
+        columns = line.strip('\n').split('\t')
         col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq, col_qual = \
             columns[:11]
         other_columns = columns[11:]
         alignment_score = -1
-        col_rx, col_qx, col_bx, col_bc, col_qt = None, None, None, None, None, None
+        col_rx, col_qx, col_bx, col_bc, col_qt = None, None, None, None, None
         for col in other_columns:
             if col.startswith('AS'):
                 alignment_score = int(col.split(':')[-1])
@@ -354,7 +415,9 @@ def generate_reads(opt, output_sam_path):
 
         line = Bamline(col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq,\
                      col_qual, alignment_score, col_rx, col_qx, col_bx, col_bc, col_qt)
-        umibarcode_line_map['.'.join(col_bx, col_bc)].append(line)
+        if col_bx is None or col_bc is None:
+            continue
+        umibarcode_line_map['.'.join([col_bx, col_bc])].append(line)
         alignment_scores.append(int(alignment_score))
     os.remove(output_sam_path)
 
@@ -363,7 +426,7 @@ def generate_reads(opt, output_sam_path):
 
     reads = []
     for umi_barcode, lines in umibarcode_line_map.items():
-        reads.append(Read())
+        reads.append(Read(umi_barcode, lines))
 
     return reads
 
@@ -380,11 +443,12 @@ if __name__ == '__main__':
     import argparse
     opt = argparse.Namespace()
     opt.restrict_chr = 'chr1'
-    opt.vcf_path = '/home/users/nus/e1124923/Faser-scRNA/data/NA12878_WES_v2_phased_variants.vcf.gz'
+    opt.vcf_path = './data/NA12878_WES_v2_phased_variants.vcf.gz'
     opt.sample_name = 'NA12878_WES_v2'
     opt.black_list = None
-    opt.bam_path = '/home/users/nus/e1124923/Faser-scRNA/data/NA12878_WES_v2_phased_possorted_bam.bam'
-    opt.mapq_threshold = 255
+    opt.bam_path = './data/NA12878_WES_v2_phased_possorted_bam.bam'
+    opt.mapq_threshold = 60
+    opt.as_quality = 0.05
 
     processed_vcf = load_vcf(opt)
     variants, vid_var_map = generate_variants(processed_vcf)
