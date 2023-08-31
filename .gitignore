@@ -1,0 +1,9 @@
+data/*
+test.sh
+*.pyc
+*.pdf
+.DS_Store
+.vscode
+utils/__pycache__
+output/*.tsv
+
