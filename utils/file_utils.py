@@ -80,7 +80,7 @@ class Read:
         self.read_seqs = []
         self.read_spans = []
         for bamline in self.bamline_list:
-            Read.
+            temp_read_seq, temp_read_span = Read.adjust_read_seq(bamline)
 
     def filter_seq_by_quality(self):
         '''
@@ -94,7 +94,7 @@ class Read:
             else:
                 temp_seq += self.seq[i]
 
-    def adjust_read_seq():
+    def adjust_read_seq(line:Bamline):
         '''
         To align variants onto reads, we need to get the real coverage of the given read to the genome, by analyzing the CIGAR string.
         As the existance of $N$ and $D$, the sort&search algorithm may encounter difficulties if we take them into consideration.
@@ -102,43 +102,44 @@ class Read:
         Those offsets will be corrected by another judgement function.
         Also, to map alleles onto reads, another preprocess need to be implemented.
         '''
-        self.adjusted_read_seq = []
+        adjusted_read_seq = []
+        spans = []
         current_cigar_number = 0
-        seq_pointer = 0
-        for char in self.cigar:
+        genome_pointer = int(line.col_pos)
+        seq_pointer = genome_pointer
+        for char in line.cigar:
             if char in '0123456789':
                 current_cigar_number = current_cigar_number*10 + int(char)
             else:
                 if char == 'S':
                     # soft clipping
+                    # consumes query
                     # just ignore the corresponding seq by incrementing the seq pointer.
                     seq_pointer += current_cigar_number
                 elif char == 'M' or char == '=' or char == 'X':
                     # match
+                    # consumes query and reference
                     # put the corresponding seq to the adjusted_read_seq, and adjust read_pointer
-                    self.adjusted_read_seq.append(self.seq[seq_pointer:seq_pointer+current_cigar_number])
+                    adjusted_read_seq.append(line.seq[seq_pointer:seq_pointer+current_cigar_number])
+                    # [a, b] closed intervals
+                    spans.append((genome_pointer, genome_pointer+current_cigar_number-1))
                     seq_pointer += current_cigar_number
+                    genome_pointer += current_cigar_number
                 elif char == 'I':
                     # insertion
+                    # consumes query
                     # ignore the insertion by adding seq_pointer, the adjusted_read_seq will not be affected.
                     seq_pointer += current_cigar_number
                 elif char == 'D' or char == 'N':
-                    # deletion or skipping
-                    # padd the seq with '.', it will be detected when trying to get_base_pair_by_var_pos
-                    # thus we will be notified that this read doesn't contain the variant
-                    # seq_pointer will not move cuz no corresponding subseq appears in seq
-                    self.adjusted_read_seq.append('.'*current_cigar_number)
+                    # deletion or skipped region
+                    # consumes reference
+                    # ignore it and move the pointer of genome right.
+                    genome_pointer += current_cigar_number
 
-                # No operations on "H", cuz "H" is useless
+                # No operations on "H" nor "P", cuz neither "H" nor "P" consumes neither
                 current_cigar_number = 0
-        self.adjusted_read_seq = ''.join(self.adjusted_read_seq)
-        self.real_span = len(self.adjusted_read_seq)
-
-        # [start, end]
-        # if start <= var_pos <= end
-        # var_pos is in read
-        self.start = int(self.pos)
-        self.end = self.start + self.real_span - 1
+        
+        return adjusted_read_seq, spans
 
     def get_base_pair_by_var_pos(self, var_pos):
         '''
@@ -379,10 +380,10 @@ if __name__ == '__main__':
     import argparse
     opt = argparse.Namespace()
     opt.restrict_chr = 'chr1'
-    opt.vcf_path = '../data/NA12878_phased_variants.vcf.gz'
-    opt.sample_name = 'NA12878'
+    opt.vcf_path = '/home/users/nus/e1124923/Faser-scRNA/data/NA12878_WES_v2_phased_variants.vcf.gz'
+    opt.sample_name = 'NA12878_WES_v2'
     opt.black_list = None
-    opt.bam_path = '../data/NA12878_phased_possorted_bam.bam'
+    opt.bam_path = '/home/users/nus/e1124923/Faser-scRNA/data/NA12878_WES_v2_phased_possorted_bam.bam'
     opt.mapq_threshold = 255
 
     processed_vcf = load_vcf(opt)
