@@ -66,10 +66,14 @@ class Bamline:
 
 
 class Read:
-    def __init__(self, umi_barcode:str, bamline_list:list[Bamline], qual_threshold=10) -> None:
+
+    lengths = []
+    def __init__(self, umi_barcode:str, bamline_list:list[Bamline], alignment_filter, qual_threshold=35) -> None:
         self.umi_barcode = umi_barcode
         self.bamline_list = bamline_list
         self.qual_threshold = qual_threshold
+        self.alignment_filter = alignment_filter
+        Read.lengths.append(len(self.bamline_list))
 
         self.extract_read_seq()
         self.filter_seq_by_quality()
@@ -84,6 +88,8 @@ class Read:
         self.read_quals = []
         self.read_spans = []
         for bamline in self.bamline_list:
+            if int(bamline.alignment_score) <= self.alignment_filter:
+                continue
             temp_read_seq, temp_qual_seq, temp_read_span = Read.adjust_read_seq(bamline)
             self.read_seqs += temp_read_seq
             self.read_quals += temp_qual_seq
@@ -173,13 +179,13 @@ class Read:
         for i in range(c, min(b, d) + 1):
             base_1, q_1 = read_1[i-a], qual_1[i-a]
             base_2, q_2 = read_2[i-c], qual_2[i-c]
-            conflict_reads += base_1 if q_1 > q_2 else base_2
+            # conflict_reads += base_1 if q_1 > q_2 else base_2
+            conflict_reads += '.'
             conflict_quals += max(q_1, q_2)
 
-        return read_1[:c-a]+conflict_reads+read_2[b-c+1:d-c+1] if d>b else read_1[d-a+1:b-a+1], \
-        qual_1[:c-a]+conflict_quals+qual_2[b-c+1:d-c+1] if d>b else qual_1[d-a+1:b-a+1], (a, max(b, d))
+        return read_1[:c-a] + conflict_reads+ (read_2[b-c+1:d-c+1] if d>b else read_1[d-a+1:b-a+1]), \
+        qual_1[:c-a] + conflict_quals+ (qual_2[b-c+1:d-c+1] if d>b else qual_1[d-a+1:b-a+1]), (a, max(b, d))
 
-    
     def merge_seqs(self):
         '''
         merge reads with overlapping spans.
@@ -206,61 +212,19 @@ class Read:
         '''
         Given a variant position on genome, return the corresponding base pair on the read.
         '''
-        pos = var_pos - self.start
-        base_pair = self.adjusted_read_seq[pos]
 
-        if base_pair == '.':
-            # Means the variant actually do not appear in this read.
-            # It is covered by a deletion or skipping
-            return None
-        return base_pair
+        for read, (left, right) in zip(self.read_seqs, self.read_spans):
+            if var_pos <= right and var_pos >= left:
+                pos = var_pos - left
+                base_pair = read[pos]
+
+                if base_pair == '.':
+                    # Means the variant actually do not appear in this read.
+                    # It is covered by a deletion
+                    return None
+                return base_pair
+        return None
     
-    @staticmethod
-    def split_alignment_factory(col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen,\
-                                 col_seq, col_qual, alignment_score):
-        '''
-        As there is the existance of $N$, need to split one read into multiple reads.
-        Only split the $col_seq$ and $col_cigar$, and recalculate the position of col_pos for the splited out read.
-        This function is recursive.
-
-        Don't ask me for why this function is working properly, I will forget it in 2 days.
-        '''
-        if col_cigar == '':
-            return []
-        current_cigar_number = 0
-        seq_pointer = 0
-        real_length = 0
-        temp_cigar = ''
-        temp_seq = ''
-
-        for i, char in enumerate(col_cigar):
-            if char in '0123456789':
-                current_cigar_number = current_cigar_number*10 + int(char)
-            else:
-                if char == 'N':
-                    # recursively split read
-                    real_length += current_cigar_number
-                    return [Read(col_qname, col_flag, col_rname, col_pos, col_mapq, temp_cigar, col_rnext, col_pnext, col_tlen, temp_seq, col_qual[:seq_pointer], alignment_score)]+\
-                        Read.split_alignment_factory(col_qname, col_flag, col_rname, str(int(col_pos)+real_length), col_mapq, col_cigar[i+1:], col_rnext, col_pnext, col_tlen, col_seq[seq_pointer:], col_qual[seq_pointer:], alignment_score)
-                
-                # It is real hard to balance between the real next read starting position, the SEQ for current read and to where has the 
-                # CIGAR been processed.
-                if char == 'M' or char == 'X' or char == '=' or char =='I' or char=='S':
-                    temp_seq += col_seq[seq_pointer:seq_pointer+current_cigar_number]
-                    seq_pointer += current_cigar_number
-                    if char != 'I' and char != 'S':
-                        real_length += current_cigar_number
-                elif char == 'D':
-                    real_length += current_cigar_number
-                
-                temp_cigar += str(current_cigar_number) + char
-                # if it get to the end of the CIGAR string, then finish it.
-                if i == len(col_cigar)-1:
-                    return [Read(col_qname, col_flag, col_rname, col_pos, col_mapq, temp_cigar, col_rnext, col_pnext, col_tlen,\
-                                  temp_seq, col_qual[:len(temp_seq)], alignment_score)]
-                current_cigar_number = 0
-
-
 def load_vcf(opt):
     '''
     To load and do simple filtering on vcf file.
@@ -397,7 +361,7 @@ def generate_reads(opt, output_sam_path):
         col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq, col_qual = \
             columns[:11]
         other_columns = columns[11:]
-        alignment_score = -1
+        alignment_score = -100
         col_rx, col_qx, col_bx, col_bc, col_qt = None, None, None, None, None
         for col in other_columns:
             if col.startswith('AS'):
@@ -422,12 +386,12 @@ def generate_reads(opt, output_sam_path):
     os.remove(output_sam_path)
 
     # Filter these reads by alignment score
-    alignment_score_filter = np.percentile(alignment_scores, opt.as_quality*100)
+    # alignment_score_filter = np.percentile(alignment_scores, opt.as_quality*100)
+    alignment_score_filter = -99
 
     reads = []
     for umi_barcode, lines in umibarcode_line_map.items():
-        reads.append(Read(umi_barcode, lines))
-
+        reads.append(Read(umi_barcode, lines, alignment_score_filter))
     return reads
 
 def generate_bed_file(variants:list[Variant]):
@@ -454,4 +418,7 @@ if __name__ == '__main__':
     variants, vid_var_map = generate_variants(processed_vcf)
     bed_file = generate_bed_file(variants)
     output_sam_path = load_bam(opt, bed_file)
-    generate_reads(opt, output_sam_path)
+    reads = generate_reads(opt, output_sam_path)
+    bamline_lengths = collections.Counter(Read.lengths)
+    print(sum(Read.lengths))
+    np.save('./count', bamline_lengths, allow_pickle=True)

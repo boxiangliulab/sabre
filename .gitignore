@@ -6,4 +6,8 @@ test.sh
 .vscode
 utils/__pycache__
 output/*.tsv
-
+*.gexf
+*.png
+*.npy
+output
+*.ipynb
