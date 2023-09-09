@@ -1,25 +1,11 @@
 import networkx as nx
-import matplotlib.pyplot as plt
 import collections
 from rich import print
-import math
 import numpy as np
 from scipy.stats import binom
-import pickle
 
-def create_graph(opt, allele_linkage_map, vid_var_map):
-    '''
-    Use allele linkage to create allele linkage graph.
-    Notablly, in comparison with phaser, infomations of linkage by read are completely reserved.
-    '''
-    G = nx.Graph()
-    for (alle_1, alle_2), weight in allele_linkage_map.items():
-        G.add_edges_from([(alle_1, alle_2, {'weight': weight})])
-    
-    nx.write_gexf(G, './output/original_graph_{}.gexf'.format(opt.restrict_chr))
-    # G = graph_aggregation_and_update(G)
-    G = graph_strenthen(G)
-    
+def output_graph_weights(G:nx.Graph, vid_var_map):
+
     right_edge_weights = []
     wrong_edge_weights = []
     vid_pos_map = {}
@@ -38,10 +24,27 @@ def create_graph(opt, allele_linkage_map, vid_var_map):
             wrong_edge_weights.append(data['weight'])
             continue
         right_edge_weights.append(data['weight'])
-    np.save('non-gcn-weight', nx.get_edge_attributes(G, 'weight'))
-    np.save('right_edge_weights', right_edge_weights)
-    np.save('wrong_edge_weights', wrong_edge_weights)
+    np.save('gcn-weight', nx.get_edge_attributes(G, 'weight'))
+    np.save('right_edge_weights-gcn', right_edge_weights)
+    np.save('wrong_edge_weights-gcn', wrong_edge_weights)
 
+
+def create_graph(opt, allele_linkage_map, vid_var_map):
+    '''
+    Use allele linkage to create allele linkage graph.
+    Notablly, in comparison with phaser, infomations of linkage by read are completely reserved.
+    '''
+    G = nx.Graph()
+    for (alle_1, alle_2), weight in allele_linkage_map.items():
+        G.add_edges_from([(alle_1, alle_2, {'weight': weight})])
+    
+    nx.write_gexf(G, './output/original_graph_{}.gexf'.format(opt.restrict_chr))
+    G = graph_strenthen(G)
+    G = graph_aggregation_and_update(G)
+
+    if opt.verbose:
+        output_graph_weights(G, vid_var_map)
+    
     # edge_weights = list(nx.get_edge_attributes(G, 'weight').values())
     # cut_threshold = np.percentile(edge_weights, opt.edge_threshold)
     cut_threshold = 1
@@ -245,7 +248,7 @@ def graph_aggregation_and_update(G:nx.Graph):
         G.nodes[node]['popularity'] = node_popularity
     
     for n_a, n_b in G.edges:
-        G.edges[n_a, n_b]['weight'] = round(G.edges[n_a, n_b]['weight'] / max(G.nodes[n_a]['popularity'] / G.nodes[n_b]['popularity'], G.nodes[n_b]['popularity']/ G.nodes[n_a]['popularity']), 4)
+        G.edges[n_a, n_b]['weight'] = max(G.edges[n_a, n_b]['weight'], round(G.edges[n_a, n_b]['weight'] / max(G.nodes[n_a]['popularity'] / G.nodes[n_b]['popularity'], G.nodes[n_b]['popularity']/ G.nodes[n_a]['popularity']), 4))
         # G.edges[n_a, n_b]['weight'] = round(G.edges[n_a, n_b]['weight'] ** 2 / (G.nodes[n_a]['popularity'] * G.nodes[n_b]['popularity']), 4)
     return G
 
