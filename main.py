@@ -3,6 +3,8 @@ from utils import file_utils, algo_utils, graph_utils, output_utils
 import argparse
 from rich import print
 import random
+import numpy as np
+import networkx as nx
 
 def prettify_print_header(step, content, end=''):
     print('[bold green]----- Step {}:[/bold green] {}'.format(step, content), end=end)
@@ -10,7 +12,9 @@ def prettify_print_header(step, content, end=''):
 
 def main(opt):
 
-    random.seed(114514)
+    random.seed(opt.seed)
+    np.random.seed(opt.seed)
+    
     print('''[purple]
         +---------------------------------------+
         |                                       |
@@ -43,7 +47,7 @@ def main(opt):
     prettify_print_header(4, 'Mapping Alleles to Reads [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(5, 'Creating the allele linkage graph...', end='\r')
-    allele_linkage_graph = graph_utils.create_graph(opt, allele_linkage_map)
+    allele_linkage_graph = graph_utils.create_graph(opt, allele_linkage_map, vid_var_map)
     prettify_print_header(5, 'Creating the allele linkage graph [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(6, 'Finding connected components and save them...', end='\r')
@@ -91,8 +95,9 @@ if __name__ == '__main__':
     parser.add_argument("--black_list", help="A blacklist, not implemented yet",default=None, type=str)
     parser.add_argument("--mapq_threshold", help="A filter on bam file. Reads have mapq lower than this threshold will be omitted.",default=60, type=str)
     parser.add_argument("--as_quality", help="A filter on alignment score in BAM files", default=0.05, type=float)
-    parser.add_argument("--edge_threshold", help="A filter on low confidence edges on graph", default=5, type=int)
+    parser.add_argument("--edge_threshold", help="A filter on low confidence edges on graph", default=0, type=int)
     parser.add_argument("--verbose", help="Determine whether output conflicted graphs", action='store_true')
+    parser.add_argument("--seed", help="Random seed", type=int, default=42)
     
 
     opt = parser.parse_args()

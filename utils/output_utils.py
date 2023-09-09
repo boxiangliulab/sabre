@@ -7,6 +7,21 @@ def get_opposite_allele(allele, is_opposite=True):
         return allele.split(':')[0]+':{}'.format(1-int(allele.split(':')[1]))
     return allele
 
+def check_hyplotype(ground_truth, predict):
+
+    is_opposite = False
+    for i, gt in enumerate(ground_truth):
+        if gt == '-':
+            continue
+        if i == 0:
+            if gt != predict[i]:
+                is_opposite = True
+                continue
+        else:
+            if (not is_opposite and gt != predict[i]) or (is_opposite and gt == predict[i]):
+                return False
+    
+    return True
 
 def de_duplicate(alleles_list:list[list[str]]):
     '''
@@ -75,9 +90,9 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
             predicted_phasing_str = ''.join(phasing)
 
             #Get ground_truth phasing result
-            gt_phasing_str = ''.join(list(map(lambda x: vid_var_map[x].genotype_string.split('|')[0], vids)))
+            gt_phasing_str = ''.join(list(map(lambda x: vid_var_map[x].genotype_string.split('|')[0] if vid_var_map[x].is_phased else '-', vids)))
             is_correct = 0
-            if predicted_phasing_str == gt_phasing_str or predicted_phasing_str == gt_phasing_str.replace('0','2').replace('1','0').replace('2','1'):
+            if check_hyplotype(gt_phasing_str, predicted_phasing_str):
                 is_correct = 1
 
             total_hyp += 1
@@ -96,9 +111,9 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
             predicted_phasing_str = ''.join(phasing)
 
             #Get ground_truth phasing result
-            gt_phasing_str = ''.join(list(map(lambda x: vid_var_map[x].genotype_string.split('|')[0], vids)))
+            gt_phasing_str = ''.join(list(map(lambda x: vid_var_map[x].genotype_string.split('|')[0] if vid_var_map[x].is_phased else '-', vids)))
             is_correct = 0
-            if predicted_phasing_str == gt_phasing_str or predicted_phasing_str == gt_phasing_str.replace('0','2').replace('1','0').replace('2','1'):
+            if check_hyplotype(gt_phasing_str, predicted_phasing_str):
                 is_correct = 1
 
             total_predict += 1

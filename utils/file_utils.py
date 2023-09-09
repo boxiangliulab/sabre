@@ -309,6 +309,8 @@ def generate_variants(processed_vcf_path):
             if '.' in genotype_string:
                 filtered_record_num += 1
                 continue
+            elif '|' in genotype_string:
+                is_phased = True
             
             # Restrict the length of alternative base pair into 1.
             all_alleles = col_alt.split(',') + [col_ref]
@@ -386,8 +388,8 @@ def generate_reads(opt, output_sam_path):
     os.remove(output_sam_path)
 
     # Filter these reads by alignment score
-    # alignment_score_filter = np.percentile(alignment_scores, opt.as_quality*100)
-    alignment_score_filter = -99
+    alignment_score_filter = np.percentile(alignment_scores, opt.as_quality*100)
+    # alignment_score_filter = -99
 
     reads = []
     for umi_barcode, lines in umibarcode_line_map.items():
