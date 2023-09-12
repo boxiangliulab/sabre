@@ -17,7 +17,7 @@ def main(opt):
     print('''[purple]
         +---------------------------------------+
         |                                       |
-        |      [bold green]:dna:FASER for scRNA-Seq:dna:[/bold green] [italic purple]v1.1[/italic purple]     |
+        |      [bold green]:dna:FASER for scRNA-Seq:dna:[/bold green] [italic purple]v1.2[/italic purple]     |
         |                                       |
         +---------------------------------------+
         [/purple]''')

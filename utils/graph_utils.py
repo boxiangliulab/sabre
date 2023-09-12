@@ -118,10 +118,32 @@ def find_conflict_alleles(G: nx.Graph):
     variant_count = collections.Counter(variant_list)
     return list(filter(lambda x: variant_count[x] == 2, variant_count.keys()))
 
-def split_graph_by_common_shortest_path(sg: nx.Graph, graph_name=''):
+def split_graph_by_common_shortest_path(sg: nx.Graph, graph_name='', max_remove_node=1):
     '''
     Find all the conflicted alleles, find common node in short paths between conflicted nodes and remove them.
     '''
+
+    sg = nx.Graph(sg)
+    common_nodes_on_short_paths = []
+    conflicted_variants = find_conflict_alleles(sg)
+    for cv in conflicted_variants:
+        allele_0, allele_1 = '{}:0'.format(cv), '{}:1'.format(cv)
+        common_nodes_on_short_paths += nx.shortest_path(sg, allele_0, allele_1, weight='weight')
+    
+    node_counter = dict(collections.Counter(common_nodes_on_short_paths))
+    candidate_nodes = sorted(node_counter.keys(), key=lambda x: node_counter[x], reverse=True)
+
+    for i, node in enumerate(candidate_nodes):
+        sg.remove_node(node)
+        is_conflicted = False
+        for component in nx.connected_components(sg):
+            if find_conflict_alleles(sg.subgraph(component)) != []:
+                is_conflicted = True
+                break
+        
+        if not is_conflicted or i == max_remove_node-1: return nx.connected_components(sg)
+    
+    return []
 
 def split_graph_by_min_cut(sg: nx.Graph, graph_name=''):
     '''
@@ -182,20 +204,6 @@ def split_graph_by_fiedler_vector(sg:nx.Graph, graph_name='', threshold=1e-2):
             final_partitions.append(i)
         else:
             final_partitions+=split_graph_by_fiedler_vector(sg.subgraph(i))
-
-    # conflict_nodes_0 = find_conflict_alleles(sg.subgraph(partitions[0]))
-    # conflict_nodes_1 = find_conflict_alleles(sg.subgraph(partitions[1]))
-
-    # if conflict_nodes_0 == [] and conflict_nodes_1 == []:
-    #     final_partitions.append(partitions[0])
-    #     final_partitions.append(partitions[1])
-    # elif conflict_nodes_0 == []:
-    #     final_partitions.append(partitions[0])
-    # elif conflict_nodes_0 == []:
-    #     final_partitions.append(partitions[1])
-    # else:
-    #     final_partitions+=split_graph_by_fiedler_vector(sg.subgraph(partitions[0]))
-    #     final_partitions+=split_graph_by_fiedler_vector(sg.subgraph(partitions[1]))
     
     return final_partitions
 
@@ -239,8 +247,9 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
 
             graph_name = list(cleared_sg.nodes)[0]
             # entropy = calculate_graph_entropy(sg)
+            final_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=2)
             # final_partitions = split_graph_by_min_cut(sg, graph_name)
-            final_partitions = split_graph_by_fiedler_vector(cleared_sg, graph_name)
+            final_partitions = split_graph_by_fiedler_vector(cleared_sg, graph_name, threshold=1e-2)
 
             for partition in final_partitions:
                 resolved_subgraph = cleared_sg.subgraph(partition)
