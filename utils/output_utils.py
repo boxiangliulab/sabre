@@ -1,6 +1,6 @@
 import networkx as nx
-import collections
 import matplotlib.pyplot as plt
+import itertools
 
 def get_opposite_allele(allele, is_opposite=True):
     if is_opposite:
@@ -10,17 +10,18 @@ def get_opposite_allele(allele, is_opposite=True):
 def check_hyplotype(ground_truth, predict):
 
     is_opposite = False
+    is_first_allele = True
     for i, gt in enumerate(ground_truth):
         if gt == '-':
             continue
-        if i == 0:
+        if is_first_allele:
+            is_first_allele = False
             if gt != predict[i]:
                 is_opposite = True
                 continue
         else:
             if (not is_opposite and gt != predict[i]) or (is_opposite and gt == predict[i]):
                 return False
-    
     return True
 
 def de_duplicate(alleles_list:list[list[str]]):
@@ -32,15 +33,16 @@ def de_duplicate(alleles_list:list[list[str]]):
     0---1---2
     Thus, we solve this problem by graph.
     '''
+
     graph = nx.Graph()
+    # alleles_list = sorted(map(sorted, alleles_list))
     for alleles in alleles_list:
         is_opposite = False
         for allele in alleles:
             opposite_allele = get_opposite_allele(allele)
             if opposite_allele in graph.nodes:
                 is_opposite = True
-                break
-        
+
         for i in range(len(alleles)-1):
             graph.add_edge(get_opposite_allele(alleles[i], is_opposite), get_opposite_allele(alleles[i+1], is_opposite))
     
@@ -73,7 +75,17 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
     already_reported_set = []
     total_nodes = 0
 
-    final_hyplotypes = de_duplicate(nonconflicted_nodes + list(map(lambda x: x[0], resolved_conflicted_nodes)))
+    final_hyplotypes = de_duplicate(nonconflicted_nodes + resolved_conflicted_nodes)
+
+    already_seen_var = set()
+    for nodes in final_hyplotypes:
+        for node in nodes:
+            if node.split(':')[0] in already_seen_var:
+                print(node)
+            else:
+                already_seen_var.add(node.split(':')[0])
+
+
     with open('./output/chr_{}_haplotypes.tsv'.format(opt.restrict_chr), 'w') as f:
         f.write('haplotype\tpredicted_phasing\tgt_phasing\tcorrection\n')
         for nodes in final_hyplotypes:
@@ -102,7 +114,7 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
 
 
     with open('./output/chr_{}_conflicted_hyplotypes.tsv'.format(opt.restrict_chr), 'w') as f:
-        for nodes, entropy in resolved_conflicted_nodes:
+        for nodes in resolved_conflicted_nodes:
             var_phasing_list = list(map(lambda x: x.split(':'), nodes))
             vids, phasing = zip(*var_phasing_list)
             var_set = set(vids)
@@ -119,6 +131,6 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
             total_predict += 1
             correct_predict += is_correct
             
-            f.write('{}\t{}\t{}\t{}\t1\t{}\n'.format(vids_string, predicted_phasing_str, gt_phasing_str, is_correct, entropy))
+            f.write('{}\t{}\t{}\t{}\t1\n'.format(vids_string, predicted_phasing_str, gt_phasing_str, is_correct))
 
     return total_hyp, correct_hyp, total_predict, correct_predict, total_nodes

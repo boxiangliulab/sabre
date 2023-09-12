@@ -4,7 +4,6 @@ import argparse
 from rich import print
 import random
 import numpy as np
-import networkx as nx
 
 def prettify_print_header(step, content, end=''):
     print('[bold green]----- Step {}:[/bold green] {}'.format(step, content), end=end)
@@ -18,7 +17,7 @@ def main(opt):
     print('''[purple]
         +---------------------------------------+
         |                                       |
-        |      [bold green]:dna:FASER for scRNA-Seq:dna:[/bold green] [italic purple]v0.1[/italic purple]     |
+        |      [bold green]:dna:FASER for scRNA-Seq:dna:[/bold green] [italic purple]v1.1[/italic purple]     |
         |                                       |
         +---------------------------------------+
         [/purple]''')
@@ -59,15 +58,14 @@ def main(opt):
     prettify_print_header(7, 'Finding conflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(8, 'Reporting nonconflicted subgraphs...', end='\r')
-    nonconflicted_nodes = graph_utils.extract_nonconflicted_nodes(nonconflicted_graphs)
+    nonconflicted_nodes, phased_vars = graph_utils.extract_nonconflicted_nodes(nonconflicted_graphs)
     prettify_print_header(8, 'Reporting nonconflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(9, 'Resolving conflicted subgraphs...', end='\r')
-    resolved_conflicted_nodes = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs)
+    resolved_conflicted_nodes = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, phased_vars)
     prettify_print_header(9, 'Resolving conflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(10, 'Reporting phasing result...', end='\r')
-
     total_hyp, correct_hyp, total_predict, correct_predict, total_nodes = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map)
     prettify_print_header(10, 'Reporting phasing result [pink1 bold]COMPLETED![/pink1 bold]', '\n')
     print("Phasing on chromosome {} [pink1 bold]COMPLETED![/pink1 bold]".format(opt.restrict_chr))

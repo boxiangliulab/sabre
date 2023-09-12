@@ -1,8 +1,6 @@
 import networkx as nx
 import collections
-from rich import print
 import numpy as np
-from scipy.stats import binom
 
 def output_graph_weights(G:nx.Graph, vid_var_map):
 
@@ -17,7 +15,7 @@ def output_graph_weights(G:nx.Graph, vid_var_map):
         pos_x = vid_pos_map[vid]
 
         var = vid_var_map[vid]
-        pos_y = 0 if var.genotype_string.split('|')[0] == allele else 40
+        pos_y = 0 if var.genotype_string.split('|')[0] == allele else 1
         node_pos_map[node] = (pos_x, pos_y)
     for a, b, data in G.edges.data():
         if node_pos_map[a][1] != node_pos_map[b][1]:
@@ -38,15 +36,14 @@ def create_graph(opt, allele_linkage_map, vid_var_map):
     for (alle_1, alle_2), weight in allele_linkage_map.items():
         G.add_edges_from([(alle_1, alle_2, {'weight': weight})])
     
-    nx.write_gexf(G, './output/original_graph_{}.gexf'.format(opt.restrict_chr))
+    # nx.write_gexf(G, './output/original_graph_{}.gexf'.format(opt.restrict_chr))
     G = graph_strenthen(G)
-    G = graph_aggregation_and_update(G)
+    # G = graph_aggregation_and_update(G)
+    nx.write_gexf(G, './output/original_graph_{}.gexf'.format(opt.restrict_chr))
 
     if opt.verbose:
         output_graph_weights(G, vid_var_map)
-    
-    # edge_weights = list(nx.get_edge_attributes(G, 'weight').values())
-    # cut_threshold = np.percentile(edge_weights, opt.edge_threshold)
+
     cut_threshold = 1
     edges_to_remove = [(a,b) for a,b,attrs in G.edges(data=True) if attrs['weight']<=cut_threshold]
     # Unfreeze the graph, otherwise will raise Frozen graph can't be modified Error.
@@ -60,7 +57,7 @@ def visualize_graph(G:nx.Graph, save_name):
     if len(G.nodes) == 1:
         return
     
-    nx.write_gexf(G, './output/graph_pdfs/{}.gexf'.format(save_name))
+    nx.write_graphml(G, './output/graph_pdfs/{}.graphml'.format(save_name))
 
 def find_connected_components(G:nx.Graph):
     '''
@@ -84,6 +81,8 @@ def find_conflict_graphs(opt, subgraphs:list[nx.Graph], vid_var_map):
     conflicted_graphs, nonconflicted_graphs = [], []
     for sg in subgraphs:
         alleles = list(sg.nodes)
+        if len(alleles) == 1:
+            continue
         variants = set(map(lambda x: x.split(':')[0], alleles))
         if len(alleles) == len(variants):
             nonconflicted_graphs.append(sg)
@@ -100,7 +99,7 @@ def find_conflict_graphs(opt, subgraphs:list[nx.Graph], vid_var_map):
                 pos_x = vid_pos_map[vid]
 
                 var = vid_var_map[vid]
-                pos_y = 0 if var.genotype_string.split('|')[0] == allele else 40
+                pos_y = 0 if var.genotype_string.split('|')[0] == allele else 1
                 node_pos_map[node] = (pos_x, pos_y)
                 sg.nodes[node]['x'] = float(pos_x)
                 sg.nodes[node]['y'] = float(pos_y)
@@ -118,6 +117,11 @@ def find_conflict_alleles(G: nx.Graph):
     variant_list = list(map(lambda x: x.split(':')[0], alleles_nodes))
     variant_count = collections.Counter(variant_list)
     return list(filter(lambda x: variant_count[x] == 2, variant_count.keys()))
+
+def split_graph_by_common_shortest_path(sg: nx.Graph, graph_name=''):
+    '''
+    Find all the conflicted alleles, find common node in short paths between conflicted nodes and remove them.
+    '''
 
 def split_graph_by_min_cut(sg: nx.Graph, graph_name=''):
     '''
@@ -150,7 +154,7 @@ def split_graph_by_min_cut(sg: nx.Graph, graph_name=''):
     
     return final_partitions
 
-def split_graph_by_fiedler_vector(sg:nx.Graph, graph_name=''):
+def split_graph_by_fiedler_vector(sg:nx.Graph, graph_name='', threshold=1e-2):
     '''
     Split the graph by fiedler vector to gain global optimized result.
     '''
@@ -160,20 +164,38 @@ def split_graph_by_fiedler_vector(sg:nx.Graph, graph_name=''):
     fiedler_vector = nx.fiedler_vector(sg)
     partitions = ([],[])
     for i, node in enumerate(sg.nodes):
+        if abs(fiedler_vector[i]) < threshold:
+            continue
         if fiedler_vector[i] < 0:
             partitions[0].append(node)
             continue
         partitions[1].append(node)
-
-    if find_conflict_alleles(sg.subgraph(partitions[0])) == []:
-        final_partitions.append(partitions[0])
-    else:
-        final_partitions+=split_graph_by_fiedler_vector(sg.subgraph(partitions[0]))
     
-    if find_conflict_alleles(sg.subgraph(partitions[1])) == []:
-        final_partitions.append(partitions[1])
-    else:
-        final_partitions+=split_graph_by_fiedler_vector(sg.subgraph(partitions[1]))
+    partition_results = []
+    for i in nx.connected_components(sg.subgraph(partitions[0])):
+        partition_results.append(i)
+    for i in nx.connected_components(sg.subgraph(partitions[1])):
+        partition_results.append(i)
+
+    for i in partition_results:
+        if find_conflict_alleles(sg.subgraph(i)) == []:
+            final_partitions.append(i)
+        else:
+            final_partitions+=split_graph_by_fiedler_vector(sg.subgraph(i))
+
+    # conflict_nodes_0 = find_conflict_alleles(sg.subgraph(partitions[0]))
+    # conflict_nodes_1 = find_conflict_alleles(sg.subgraph(partitions[1]))
+
+    # if conflict_nodes_0 == [] and conflict_nodes_1 == []:
+    #     final_partitions.append(partitions[0])
+    #     final_partitions.append(partitions[1])
+    # elif conflict_nodes_0 == []:
+    #     final_partitions.append(partitions[0])
+    # elif conflict_nodes_0 == []:
+    #     final_partitions.append(partitions[1])
+    # else:
+    #     final_partitions+=split_graph_by_fiedler_vector(sg.subgraph(partitions[0]))
+    #     final_partitions+=split_graph_by_fiedler_vector(sg.subgraph(partitions[1]))
     
     return final_partitions
 
@@ -191,7 +213,7 @@ def calculate_graph_entropy(G:nx.Graph):
     p = np.exp(adjusted_edge_weights) / np.sum(np.exp(adjusted_edge_weights))
     return np.sum(p*np.log(p+1e-99))
 
-def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph]):
+def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]):
     '''
     By now, this function can only resolve conflict graphs with only one conflict allele.
     The underlying algorithm is a Max-flow/Min-Cut graph algorithm, namely preflow-push algorithm.
@@ -199,26 +221,34 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph]):
 
     We first find conflict alleles in the graph, then consider them to be the source node and sink node for the flow.
     Then utilize networkx.minimum_cut() to split the subgraph by minimum cut.
-
-    If the conflict graph is:
-    A_0:----i----:B:----j----:A_1
-    We will do a binomial test to determine whether this graph is significant.
     '''
     resolved_nodes = []
     for sg in subgraphs:
+
+        sg = nx.Graph(sg)
+        remove_nodes = []
+        for node in sg.nodes:
+            if node.split(':')[0] in phased_vars:
+                remove_nodes.append(node)
+        sg.remove_nodes_from(remove_nodes)
+
+        for components in nx.connected_components(sg):
+            cleared_sg = sg.subgraph(components)
+            if len(cleared_sg.nodes) <= 1:
+                continue
+
+            graph_name = list(cleared_sg.nodes)[0]
+            # entropy = calculate_graph_entropy(sg)
+            # final_partitions = split_graph_by_min_cut(sg, graph_name)
+            final_partitions = split_graph_by_fiedler_vector(cleared_sg, graph_name)
+
+            for partition in final_partitions:
+                resolved_subgraph = cleared_sg.subgraph(partition)
+                if opt.verbose:
+                    visualize_graph(sg, '{}_1'.format(graph_name))
+                    visualize_graph(resolved_subgraph, '{}_0'.format(graph_name))
+                if len(partition) > 1: resolved_nodes.append(list(partition))
         
-        graph_name = list(sg.nodes)[0]
-
-        entropy = calculate_graph_entropy(sg)
-        # final_partitions = split_graph_by_min_cut(sg, graph_name)
-        final_partitions = split_graph_by_fiedler_vector(sg, graph_name)
-
-        for partition in final_partitions:
-            resolved_subgraph = sg.subgraph(partition)
-            if opt.verbose:
-                visualize_graph(resolved_subgraph, '{}_0'.format(graph_name))
-            if len(partition) > 1: resolved_nodes.append([list(partition), entropy])
-    
     return resolved_nodes
 
 def extract_nonconflicted_nodes(subgraphs: list[nx.Graph]):
@@ -227,10 +257,12 @@ def extract_nonconflicted_nodes(subgraphs: list[nx.Graph]):
     Those node sets can be considered as hyplotypes.
     '''
     nonconflicted_nodes = []
+    phased_vars = []
     for sg in subgraphs:
         nonconflicted_nodes.append(list(sg.nodes))
+        phased_vars += list(map(lambda x: x.split(':')[0], list(sg.nodes)))
     
-    return nonconflicted_nodes
+    return nonconflicted_nodes, set(phased_vars)
 
 def graph_aggregation_and_update(G:nx.Graph):
     '''
@@ -248,8 +280,7 @@ def graph_aggregation_and_update(G:nx.Graph):
         G.nodes[node]['popularity'] = node_popularity
     
     for n_a, n_b in G.edges:
-        G.edges[n_a, n_b]['weight'] = max(G.edges[n_a, n_b]['weight'], round(G.edges[n_a, n_b]['weight'] / max(G.nodes[n_a]['popularity'] / G.nodes[n_b]['popularity'], G.nodes[n_b]['popularity']/ G.nodes[n_a]['popularity']), 4))
-        # G.edges[n_a, n_b]['weight'] = round(G.edges[n_a, n_b]['weight'] ** 2 / (G.nodes[n_a]['popularity'] * G.nodes[n_b]['popularity']), 4)
+        G.edges[n_a, n_b]['weight'] = (G.edges[n_a, n_b]['weight'] / (G.nodes[n_a]['popularity'] / G.degree[n_a])) * (G.edges[n_a, n_b]['weight'] / (G.nodes[n_b]['popularity'] / G.degree[n_b]))
     return G
 
 def graph_strenthen(G:nx.Graph):

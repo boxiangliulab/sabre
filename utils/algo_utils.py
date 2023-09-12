@@ -1,10 +1,6 @@
-import numpy as np
-import pandas as pd
-import utils.file_utils
 from utils.file_utils import Read, Variant
 import collections
 from rich import print
-import itertools
 
 def binary_search(pos:int, variants:list[Variant], right_bound=0):
 

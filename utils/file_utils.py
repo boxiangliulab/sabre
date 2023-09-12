@@ -2,9 +2,7 @@
 import tempfile
 import gzip
 import numpy as np
-import pandas as pd
 import subprocess
-import tqdm
 import os
 from rich import print
 import collections
@@ -232,7 +230,7 @@ def load_vcf(opt):
     # First try to figure out which column the sample corresponds to in vcf file.
     # By literally get all the column names.
     gzip_stream = gzip.open(opt.vcf_path, 'rt')
-    vcf_column_index_map = {}
+    vcf_column_index_map = collections.OrderedDict()
     for line in gzip_stream:
         if line.strip().startswith('#CHR'):
             column_names = line.strip().split('\t')
@@ -324,7 +322,7 @@ def generate_variants(processed_vcf_path):
     
     os.remove(processed_vcf_path)
     
-    vid_var_map = {}
+    vid_var_map = collections.OrderedDict()
     for var in variants:
         vid_var_map[var.unique_id] = var
 
