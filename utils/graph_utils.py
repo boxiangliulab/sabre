@@ -129,6 +129,8 @@ def split_graph_by_common_shortest_path(sg: nx.Graph, graph_name='', max_remove_
     for cv in conflicted_variants:
         allele_0, allele_1 = '{}:0'.format(cv), '{}:1'.format(cv)
         common_nodes_on_short_paths += nx.shortest_path(sg, allele_0, allele_1, weight='weight')
+        # common_nodes_on_short_paths.remove(allele_0)
+        # common_nodes_on_short_paths.remove(allele_1)
     
     node_counter = dict(collections.Counter(common_nodes_on_short_paths))
     candidate_nodes = sorted(node_counter.keys(), key=lambda x: node_counter[x], reverse=True)
@@ -180,6 +182,8 @@ def split_graph_by_fiedler_vector(sg:nx.Graph, graph_name='', threshold=1e-2):
     '''
     Split the graph by fiedler vector to gain global optimized result.
     '''
+    if len(sg.nodes) <= 1:
+        return []
 
     final_partitions = []
 
@@ -247,9 +251,18 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
 
             graph_name = list(cleared_sg.nodes)[0]
             # entropy = calculate_graph_entropy(sg)
-            final_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=2)
-            # final_partitions = split_graph_by_min_cut(sg, graph_name)
-            final_partitions = split_graph_by_fiedler_vector(cleared_sg, graph_name, threshold=1e-2)
+            final_partitions = []
+            if opt.shortest_path:
+                _1_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=opt.remove_node)
+                for partition in _1_partitions:
+                    if find_conflict_alleles(sg.subgraph(partition)) == []:
+                        final_partitions.append(partition)
+                        continue
+                    final_partitions += split_graph_by_fiedler_vector(sg.subgraph(partition), graph_name, threshold=opt.fiedler_threshold)
+                    # final_partitions += split_graph_by_min_cut(sg.subgraph(partition), graph_name)
+            else:
+                final_partitions += split_graph_by_fiedler_vector(cleared_sg, graph_name, threshold=opt.fiedler_threshold)
+                # final_partitions += split_graph_by_min_cut(sg.subgraph(cleared_sg), graph_name)
 
             for partition in final_partitions:
                 resolved_subgraph = cleared_sg.subgraph(partition)

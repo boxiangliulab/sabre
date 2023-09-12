@@ -77,13 +77,13 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
 
     final_hyplotypes = de_duplicate(nonconflicted_nodes + resolved_conflicted_nodes)
 
-    already_seen_var = set()
-    for nodes in final_hyplotypes:
-        for node in nodes:
-            if node.split(':')[0] in already_seen_var:
-                print(node)
-            else:
-                already_seen_var.add(node.split(':')[0])
+    # already_seen_var = set()
+    # for nodes in final_hyplotypes:
+    #     for node in nodes:
+    #         if node.split(':')[0] in already_seen_var:
+    #             print(node)
+    #         else:
+    #             already_seen_var.add(node.split(':')[0])
 
 
     with open('./output/chr_{}_haplotypes.tsv'.format(opt.restrict_chr), 'w') as f:
