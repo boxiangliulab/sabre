@@ -2,7 +2,7 @@ import networkx as nx
 import collections
 import numpy as np
 
-def output_graph_weights(G:nx.Graph, vid_var_map):
+def output_graph_weights(opt, G:nx.Graph, vid_var_map):
 
     right_edge_weights = []
     wrong_edge_weights = []
@@ -19,9 +19,14 @@ def output_graph_weights(G:nx.Graph, vid_var_map):
         node_pos_map[node] = (pos_x, pos_y)
     for a, b, data in G.edges.data():
         if node_pos_map[a][1] != node_pos_map[b][1]:
+            G.edges[a,b]['right'] = 0
             wrong_edge_weights.append(data['weight'])
             continue
+        G.edges[a,b]['right'] = 1
         right_edge_weights.append(data['weight'])
+
+    nx.write_gexf(G, './output/original_graph_{}.gexf'.format(opt.restrict_chr))
+    
     np.save('gcn-weight', nx.get_edge_attributes(G, 'weight'))
     np.save('right_edge_weights-gcn', right_edge_weights)
     np.save('wrong_edge_weights-gcn', wrong_edge_weights)
@@ -39,10 +44,9 @@ def create_graph(opt, allele_linkage_map, vid_var_map):
     # nx.write_gexf(G, './output/original_graph_{}.gexf'.format(opt.restrict_chr))
     G = graph_strenthen(G)
     # G = graph_aggregation_and_update(G)
-    nx.write_gexf(G, './output/original_graph_{}.gexf'.format(opt.restrict_chr))
-
-    if opt.verbose:
-        output_graph_weights(G, vid_var_map)
+    # if opt.verbose:
+    if True:
+        output_graph_weights(opt, G, vid_var_map)
 
     cut_threshold = 1
     edges_to_remove = [(a,b) for a,b,attrs in G.edges(data=True) if attrs['weight']<=cut_threshold]
@@ -129,8 +133,8 @@ def split_graph_by_common_shortest_path(sg: nx.Graph, graph_name='', max_remove_
     for cv in conflicted_variants:
         allele_0, allele_1 = '{}:0'.format(cv), '{}:1'.format(cv)
         common_nodes_on_short_paths += nx.shortest_path(sg, allele_0, allele_1, weight='weight')
-        # common_nodes_on_short_paths.remove(allele_0)
-        # common_nodes_on_short_paths.remove(allele_1)
+        common_nodes_on_short_paths.remove(allele_0)
+        common_nodes_on_short_paths.remove(allele_1)
     
     node_counter = dict(collections.Counter(common_nodes_on_short_paths))
     candidate_nodes = sorted(node_counter.keys(), key=lambda x: node_counter[x], reverse=True)
@@ -242,7 +246,7 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
         for node in sg.nodes:
             if node.split(':')[0] in phased_vars:
                 remove_nodes.append(node)
-        sg.remove_nodes_from(remove_nodes)
+        # sg.remove_nodes_from(remove_nodes)
 
         for components in nx.connected_components(sg):
             cleared_sg = sg.subgraph(components)

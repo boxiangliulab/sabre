@@ -11,3 +11,5 @@ output/*.tsv
 *.npy
 output
 *.ipynb
+*.pkl
+*.txt
