@@ -17,6 +17,9 @@ def output_graph_weights(opt, G:nx.Graph, vid_var_map):
         var = vid_var_map[vid]
         pos_y = 0 if var.genotype_string.split('|')[0] == allele else 1
         node_pos_map[node] = (pos_x, pos_y)
+
+        G.nodes[node]['x'] = float(pos_x)
+        G.nodes[node]['y'] = float(pos_y)
     for a, b, data in G.edges.data():
         if node_pos_map[a][1] != node_pos_map[b][1]:
             G.edges[a,b]['right'] = 0
@@ -25,11 +28,11 @@ def output_graph_weights(opt, G:nx.Graph, vid_var_map):
         G.edges[a,b]['right'] = 1
         right_edge_weights.append(data['weight'])
 
-    nx.write_gexf(G, './output/original_graph_{}.gexf'.format(opt.restrict_chr))
+    nx.write_graphml(G, './output/original_graph_{}.graphml'.format(opt.restrict_chr))
     
-    np.save('gcn-weight', nx.get_edge_attributes(G, 'weight'))
-    np.save('right_edge_weights-gcn', right_edge_weights)
-    np.save('wrong_edge_weights-gcn', wrong_edge_weights)
+    np.save('non-gcn-weight', nx.get_edge_attributes(G, 'weight'))
+    np.save('right_edge_weights', right_edge_weights)
+    np.save('wrong_edge_weights', wrong_edge_weights)
 
 
 def create_graph(opt, allele_linkage_map, vid_var_map):
@@ -43,13 +46,12 @@ def create_graph(opt, allele_linkage_map, vid_var_map):
     
     # nx.write_gexf(G, './output/original_graph_{}.gexf'.format(opt.restrict_chr))
     G = graph_strenthen(G)
-    # G = graph_aggregation_and_update(G)
-    # if opt.verbose:
-    if True:
+    G = graph_aggregation_and_update(G)
+    if opt.verbose:
         output_graph_weights(opt, G, vid_var_map)
 
-    cut_threshold = 1
-    edges_to_remove = [(a,b) for a,b,attrs in G.edges(data=True) if attrs['weight']<=cut_threshold]
+    cut_threshold = 0.17
+    edges_to_remove = [(a,b) for a,b,attrs in G.edges(data=True) if attrs['weight']<cut_threshold]
     # Unfreeze the graph, otherwise will raise Frozen graph can't be modified Error.
     G.remove_edges_from(edges_to_remove)
     return G
@@ -247,6 +249,9 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
             if node.split(':')[0] in phased_vars:
                 remove_nodes.append(node)
         # sg.remove_nodes_from(remove_nodes)
+        edges_to_remove = [(a,b) for a,b,attrs in sg.edges(data=True) if attrs['weight']<=1]
+        # Unfreeze the graph, otherwise will raise Frozen graph can't be modified Error.
+        # sg.remove_edges_from(edges_to_remove)
 
         for components in nx.connected_components(sg):
             cleared_sg = sg.subgraph(components)
@@ -306,7 +311,9 @@ def graph_aggregation_and_update(G:nx.Graph):
         G.nodes[node]['popularity'] = node_popularity
     
     for n_a, n_b in G.edges:
-        G.edges[n_a, n_b]['weight'] = (G.edges[n_a, n_b]['weight'] / (G.nodes[n_a]['popularity'] / G.degree[n_a])) * (G.edges[n_a, n_b]['weight'] / (G.nodes[n_b]['popularity'] / G.degree[n_b]))
+        # G.edges[n_a, n_b]['weight'] = (G.edges[n_a, n_b]['weight'] / (G.nodes[n_a]['popularity'] / G.degree[n_a])) * (G.edges[n_a, n_b]['weight'] / (G.nodes[n_b]['popularity'] / G.degree[n_b]))
+        G.edges[n_a, n_b]['weight'] = 2 * G.edges[n_a, n_b]['weight'] / (G.nodes[n_a]['popularity']/G.degree(n_a) + G.nodes[n_b]['popularity']/G.degree(n_a))
+        # G.edges[n_a, n_b]['weight'] = G.edges[n_a, n_b]['weight'] / min(G.nodes[n_a]['popularity'], G.nodes[n_b]['popularity'])
     return G
 
 def graph_strenthen(G:nx.Graph):

@@ -27,7 +27,7 @@ def main(opt):
     prettify_print_header(1, 'Loading and Preprocessing VCF File...', end='\r')
     processed_vcf_file = file_utils.load_vcf(opt)
     variants, vid_var_map = file_utils.generate_variants(processed_vcf_file)
-    bed_file = file_utils.generate_bed_file(variants)
+    bed_file = file_utils.generate_bed_file(opt, variants)
     prettify_print_header(1, 'Loading and Preprocessing VCF File [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(2, 'Loading and Preprocessing BAM File...', end='\r')
@@ -89,13 +89,15 @@ if __name__ == '__main__':
     parser.add_argument("--bam_path", help="Indexed BAMs (comma separated) containing aligned reads", required = True, default='')
     parser.add_argument("--vcf_path", help="VCF for the sample, must be gzipped and tabix indexed.", required = True, default='')
     parser.add_argument("--sample_name", help="Sample name in VCF", required = False, default='')
-    parser.add_argument("--restrict_chr", help="To restrict phasing in a given chr",default=None, type=str)
+    parser.add_argument("--restrict_chr", help="To restrict phasing in a given chr on BAM & VCF",default=None, type=str)
+    parser.add_argument("--restrict_chr_vcf", help="To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF",default=None, type=str)
     parser.add_argument("--black_list", help="A blacklist, not implemented yet",default=None, type=str)
     parser.add_argument("--mapq_threshold", help="A filter on bam file. Reads have mapq lower than this threshold will be omitted.",default=60, type=str)
     parser.add_argument("--fiedler_threshold", help="Nodes with corresponding value in fiedler vector lower than threshold will be removed",default=1e-2, type=float)
     parser.add_argument("--remove_node", help="Remove no more than $remove_node$ in split_graph_by_common_shortest_path",default=1, type=int)
     parser.add_argument("--shortest_path", help="Decide whether activate split_graph_by_common_shortest_path.", action='store_true')
     parser.add_argument("--as_quality", help="A filter on alignment score in BAM files", default=0.05, type=float)
+    parser.add_argument("--neglect_overlap", help="Neglect overlap when deal with reads overlaps", action='store_true')
     parser.add_argument("--edge_threshold", help="A filter on low confidence edges on graph", default=0, type=int)
     parser.add_argument("--verbose", help="Determine whether output conflicted graphs", action='store_true')
     parser.add_argument("--seed", help="Random seed", type=int, default=42)
@@ -103,5 +105,6 @@ if __name__ == '__main__':
 
     opt = parser.parse_args()
     
+    opt.restrict_chr_vcf = opt.restrict_chr if opt.restrict_chr_vcf is None else opt.restrict_chr_vcf
     
     main(opt)

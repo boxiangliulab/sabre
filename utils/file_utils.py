@@ -66,11 +66,12 @@ class Bamline:
 class Read:
 
     lengths = []
-    def __init__(self, umi_barcode:str, bamline_list:list[Bamline], alignment_filter, qual_threshold=35) -> None:
+    def __init__(self, umi_barcode:str, bamline_list:list[Bamline], alignment_filter, qual_threshold=10, neglect_overlap=True) -> None:
         self.umi_barcode = umi_barcode
         self.bamline_list = bamline_list
         self.qual_threshold = qual_threshold
         self.alignment_filter = alignment_filter
+        self.neglect_overlap = True
         Read.lengths.append(len(self.bamline_list))
 
         self.extract_read_seq()
@@ -160,7 +161,7 @@ class Read:
         
         return adjusted_read_seq, adjusted_qual_seq, spans
     
-    def merge_read_with_qual(read_pair, span_pair, qual_pair):
+    def merge_read_with_qual(read_pair, span_pair, qual_pair, neglect_overlap):
         '''
         merge a pair of reads, the final base pair is determined by corresponding quality
 
@@ -177,8 +178,10 @@ class Read:
         for i in range(c, min(b, d) + 1):
             base_1, q_1 = read_1[i-a], qual_1[i-a]
             base_2, q_2 = read_2[i-c], qual_2[i-c]
-            # conflict_reads += base_1 if q_1 > q_2 else base_2
-            conflict_reads += '.'
+            if not neglect_overlap:
+                conflict_reads += base_1 if q_1 > q_2 else base_2
+            else:
+                conflict_reads += '.'
             conflict_quals += max(q_1, q_2)
 
         return read_1[:c-a] + conflict_reads+ (read_2[b-c+1:d-c+1] if d>b else read_1[d-a+1:b-a+1]), \
@@ -200,7 +203,7 @@ class Read:
                 mixed_input.append((read_2, qual_2, span_2))
             else:
                 # share overlap
-                mixed_input.append(Read.merge_read_with_qual((read_1, read_2), (span_1, span_2), (qual_1, qual_2)))
+                mixed_input.append(Read.merge_read_with_qual((read_1, read_2), (span_1, span_2), (qual_1, qual_2), self.neglect_overlap))
         
         merge_result += mixed_input
         self.read_seqs, self.read_quals, self.read_spans = list(zip(*merge_result))
@@ -245,7 +248,7 @@ def load_vcf(opt):
     # To restrict read-backed phasing to a given chr.
     command_line = ''
     if opt.restrict_chr is not None:
-        command_line = 'tabix -h ' + opt.vcf_path + ' ' + opt.restrict_chr + ':'
+        command_line = 'tabix -h ' + opt.vcf_path + ' ' + opt.restrict_chr_vcf + ':'
     else:
         command_line = 'gunzip -c ' + opt.vcf_path
     
@@ -338,7 +341,7 @@ def load_bam(opt, bed_file):
     output_sam_path = bam_out.name
 
     # We don't need headers...for now.
-    command = "samtools view {} '{}' -F 0x400 -f 2 -q {} -L {} > {}".format(opt.bam_path, opt.restrict_chr, opt.mapq_threshold,\
+    command = "samtools view {} '{}' -F 0x400 -q {} -L {} > {}".format(opt.bam_path, opt.restrict_chr, opt.mapq_threshold,\
                                                                              bed_file, output_sam_path)
     err_code = subprocess.check_call("set -euo pipefail && "+command, shell=True, executable='/bin/bash')
 
@@ -356,6 +359,7 @@ def generate_reads(opt, output_sam_path):
     umibarcode_line_map = collections.defaultdict(list)
     sam_file = open(output_sam_path, mode='r')
     alignment_scores = []
+    bamline_cnt = 0
     for line in sam_file.readlines():
         columns = line.strip('\n').split('\t')
         col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq, col_qual = \
@@ -370,9 +374,9 @@ def generate_reads(opt, output_sam_path):
                 col_rx = col.split(':')[-1]
             elif col.startswith('QX'):
                 col_qx = col.split(':')[-1]
-            elif col.startswith('BX'):
+            elif col.startswith('UB'):
                 col_bx = col.split(':')[-1]
-            elif col.startswith('BC'):
+            elif col.startswith('CB'):
                 col_bc = col.split(':')[-1]
             elif col.startswith('QT'):
                 col_qt = col.split(':')[-1]            
@@ -382,6 +386,7 @@ def generate_reads(opt, output_sam_path):
         if col_bx is None or col_bc is None:
             continue
         umibarcode_line_map['.'.join([col_bx, col_bc])].append(line)
+        bamline_cnt += 1
         alignment_scores.append(int(alignment_score))
     os.remove(output_sam_path)
 
@@ -394,11 +399,11 @@ def generate_reads(opt, output_sam_path):
         reads.append(Read(umi_barcode, lines, alignment_score_filter))
     return reads
 
-def generate_bed_file(variants:list[Variant]):
+def generate_bed_file(opt, variants:list[Variant]):
     
     bed_file = tempfile.NamedTemporaryFile(delete=False, mode='wt')
     for var in variants:
-        bed_file.write('{}\t{}\t{}\n'.format(var.col_chr, var.start, var.end))
+        bed_file.write('{}\t{}\t{}\n'.format(opt.restrict_chr, var.start, var.end))
     bed_file.close()
     return bed_file.name
 
