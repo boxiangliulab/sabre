@@ -179,10 +179,8 @@ class Read:
         for i in range(c, min(b, d) + 1):
             base_1, q_1 = read_1[i-a], qual_1[i-a]
             base_2, q_2 = read_2[i-c], qual_2[i-c]
-            if not neglect_overlap:
-                conflict_reads += base_1 if q_1 > q_2 else base_2
-            else:
-                conflict_reads += '.'
+            # conflict_reads += base_1 if q_1 > q_2 else base_2
+            conflict_reads += '.'
             conflict_quals += max(q_1, q_2)
 
         return read_1[:c-a] + conflict_reads+ (read_2[b-c+1:d-c+1] if d>b else read_1[d-a+1:b-a+1]), \
@@ -439,6 +437,6 @@ def generate_bed_file(opt, variants:list[Variant]):
     '''
     bed_file = tempfile.NamedTemporaryFile(delete=False, mode='wt')
     for var in variants:
-        bed_file.write('{}\t{}\t{}\n'.format(var.col_chr, var.start, var.end))
+        bed_file.write('{}\t{}\t{}\n'.format(opt.restrict_chr, var.start, var.end))
     bed_file.close()
     return bed_file.name
