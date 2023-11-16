@@ -6,6 +6,7 @@ import subprocess
 import os
 from rich import print
 import collections
+import itertools
 
 class Variant:
     def __init__(self, col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased) -> None:
@@ -66,11 +67,13 @@ class Bamline:
 class Read:
 
     lengths = []
-    def __init__(self, umi_barcode:str, bamline_list:list[Bamline], alignment_filter, qual_threshold=35) -> None:
+    def __init__(self, umi_barcode:str, bamline_list:list[Bamline], alignment_filter, qual_threshold=20, neglect_overlap=True) -> None:
         self.umi_barcode = umi_barcode
+        self.umi, self.barcode = self.umi_barcode.split('.')
         self.bamline_list = bamline_list
         self.qual_threshold = qual_threshold
         self.alignment_filter = alignment_filter
+        self.neglect_overlap = True
         Read.lengths.append(len(self.bamline_list))
 
         self.extract_read_seq()
@@ -80,7 +83,7 @@ class Read:
 
     def extract_read_seq(self):
         '''
-        Extract seq and span from each bamline, then 
+        Extract seq and span from each bamline by adjust_read_seq, extracted read_seqs, qual_seqs and covering_spans are stored.
         '''
         self.read_seqs = []
         self.read_quals = []
@@ -114,10 +117,9 @@ class Read:
     def adjust_read_seq(line:Bamline):
         '''
         To align variants onto reads, we need to get the real coverage of the given read to the genome, by analyzing the CIGAR string.
-        As the existance of $N$ and $D$, the sort&search algorithm may encounter difficulties if we take them into consideration.
-        Thus, the calculated real_span(the length of padded_seq_length) does contains void areas of $D$ and $N$.
-        Those offsets will be corrected by another judgement function.
-        Also, to map alleles onto reads, another preprocess need to be implemented.
+        For every bamline, or bamlines splited by $N$, we extract each corresponding read_seq, qual_seq and covering_span from it.
+        Thus, a single read may contain multiple read_seqs, qual_seqs and covering_spans, determined by the number bamlines sharing the same umi_barcode,
+        and the number of $N$s in CIGAR.
         '''
         adjusted_read_seq = []
         adjusted_qual_seq = []
@@ -160,7 +162,7 @@ class Read:
         
         return adjusted_read_seq, adjusted_qual_seq, spans
     
-    def merge_read_with_qual(read_pair, span_pair, qual_pair):
+    def merge_read_with_qual(read_pair, span_pair, qual_pair, neglect_overlap):
         '''
         merge a pair of reads, the final base pair is determined by corresponding quality
 
@@ -177,8 +179,10 @@ class Read:
         for i in range(c, min(b, d) + 1):
             base_1, q_1 = read_1[i-a], qual_1[i-a]
             base_2, q_2 = read_2[i-c], qual_2[i-c]
-            # conflict_reads += base_1 if q_1 > q_2 else base_2
-            conflict_reads += '.'
+            if not neglect_overlap:
+                conflict_reads += base_1 if q_1 > q_2 else base_2
+            else:
+                conflict_reads += '.'
             conflict_quals += max(q_1, q_2)
 
         return read_1[:c-a] + conflict_reads+ (read_2[b-c+1:d-c+1] if d>b else read_1[d-a+1:b-a+1]), \
@@ -200,7 +204,7 @@ class Read:
                 mixed_input.append((read_2, qual_2, span_2))
             else:
                 # share overlap
-                mixed_input.append(Read.merge_read_with_qual((read_1, read_2), (span_1, span_2), (qual_1, qual_2)))
+                mixed_input.append(Read.merge_read_with_qual((read_1, read_2), (span_1, span_2), (qual_1, qual_2), self.neglect_overlap))
         
         merge_result += mixed_input
         self.read_seqs, self.read_quals, self.read_spans = list(zip(*merge_result))
@@ -222,6 +226,17 @@ class Read:
                     return None
                 return base_pair
         return None
+
+def load_barcode_list(opt):
+    '''
+    Load whitelisted barcodes from given barcodes.csv
+    '''
+    barcode_file = opt.barcode_path
+    whitelisted_barcodes = set()
+    with open(barcode_file, 'r') as f:
+        for bc in f.readlines():
+            whitelisted_barcodes.add(bc.strip())
+    return whitelisted_barcodes
     
 def load_vcf(opt):
     '''
@@ -245,7 +260,7 @@ def load_vcf(opt):
     # To restrict read-backed phasing to a given chr.
     command_line = ''
     if opt.restrict_chr is not None:
-        command_line = 'tabix -h ' + opt.vcf_path + ' ' + opt.restrict_chr + ':'
+        command_line = 'tabix -h ' + opt.vcf_path + ' ' + opt.restrict_chr_vcf + ':'
     else:
         command_line = 'gunzip -c ' + opt.vcf_path
     
@@ -272,7 +287,7 @@ def generate_variants(processed_vcf_path):
     '''
     To generate wrapped variants from processed VCF file.
     Notablly, a typical VCF File header looks like:
-    #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	NA06986
+    #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE_NAME
     '''
     total_record_num = 0
     filtered_record_num = 0
@@ -309,6 +324,10 @@ def generate_variants(processed_vcf_path):
                 continue
             elif '|' in genotype_string:
                 is_phased = True
+            elif '/' in genotype_string:
+                if genotype_string.split('/')[0] == genotype_string.split('/')[1]:
+                    filtered_record_num += 1
+                    continue
             
             # Restrict the length of alternative base pair into 1.
             all_alleles = col_alt.split(',') + [col_ref]
@@ -338,7 +357,7 @@ def load_bam(opt, bed_file):
     output_sam_path = bam_out.name
 
     # We don't need headers...for now.
-    command = "samtools view {} '{}' -F 0x400 -f 2 -q {} -L {} > {}".format(opt.bam_path, opt.restrict_chr, opt.mapq_threshold,\
+    command = "samtools view {} '{}' -F 0x400 -q {} -L {} > {}".format(opt.bam_path, opt.restrict_chr, opt.mapq_threshold,\
                                                                              bed_file, output_sam_path)
     err_code = subprocess.check_call("set -euo pipefail && "+command, shell=True, executable='/bin/bash')
 
@@ -350,19 +369,21 @@ def load_bam(opt, bed_file):
 def generate_reads(opt, output_sam_path):
     '''
     Generate reads from filtered SAM file from give BAM file.
-    Notablly, reads is wrapped as a class with all fundamental informations in SAM file,
-    together with operations for calculating spans of the read.
+    Notablly, each line in the BAM file is wrapped as a Bamline.
+    Bamlines with the same umi-barcode consists one Read.
     '''
     umibarcode_line_map = collections.defaultdict(list)
     sam_file = open(output_sam_path, mode='r')
     alignment_scores = []
+    bamline_cnt = 0
+    barcode_umi_cnt = collections.defaultdict(int)
     for line in sam_file.readlines():
         columns = line.strip('\n').split('\t')
         col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq, col_qual = \
             columns[:11]
         other_columns = columns[11:]
         alignment_score = -100
-        col_rx, col_qx, col_bx, col_bc, col_qt = None, None, None, None, None
+        col_rx, col_qx, col_umi, col_barcode, col_qt = None, None, None, None, None
         for col in other_columns:
             if col.startswith('AS'):
                 alignment_score = int(col.split(':')[-1])
@@ -370,55 +391,54 @@ def generate_reads(opt, output_sam_path):
                 col_rx = col.split(':')[-1]
             elif col.startswith('QX'):
                 col_qx = col.split(':')[-1]
-            elif col.startswith('BX'):
-                col_bx = col.split(':')[-1]
-            elif col.startswith('BC'):
-                col_bc = col.split(':')[-1]
+            # umi
+            elif col.startswith('UB'):
+                col_umi = col.split(':')[-1]
+            # barcode
+            elif col.startswith('CB'):
+                col_barcode = col.split(':')[-1]
             elif col.startswith('QT'):
-                col_qt = col.split(':')[-1]            
-
+                col_qt = col.split(':')[-1]
         line = Bamline(col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq,\
-                     col_qual, alignment_score, col_rx, col_qx, col_bx, col_bc, col_qt)
-        if col_bx is None or col_bc is None:
-            continue
-        umibarcode_line_map['.'.join([col_bx, col_bc])].append(line)
+                     col_qual, alignment_score, col_rx, col_qx, col_umi, col_barcode, col_qt)
+        if opt.input_type == 'cellranger':
+            if col_umi is None or col_barcode is None :
+                continue
+            else:
+                barcode, umi = col_barcode, col_umi
+        elif opt.input_type == 'umitools':
+            # SRR8551677.318476227_CTAATGGAGACTAAGT_TCCAGACCGG
+            _, barcode, umi = col_qname.split('_')
+        umibarcode_line_map['.'.join([umi, barcode])].append(line)
+        # umibarcode_line_map['.'.join([str(bamline_cnt),str(bamline_cnt)])].append(line)
+        bamline_cnt += 1
+        barcode_umi_cnt[barcode] += 1
         alignment_scores.append(int(alignment_score))
     os.remove(output_sam_path)
+
+    umi_cnt_threshold = 0
+    filtered_barcode = set(filter(lambda x: barcode_umi_cnt[x]>umi_cnt_threshold, barcode_umi_cnt.keys()))
+
+    print('Received {} barcodes in total, after filtered #UMI less than {}, {} barcodes taken, {} barcodes omitted.'.\
+          format(len(barcode_umi_cnt.keys()), umi_cnt_threshold, len(filtered_barcode), len(barcode_umi_cnt.keys())-len(filtered_barcode)))
 
     # Filter these reads by alignment score
     alignment_score_filter = np.percentile(alignment_scores, opt.as_quality*100)
     # alignment_score_filter = -99
-
     reads = []
     for umi_barcode, lines in umibarcode_line_map.items():
-        reads.append(Read(umi_barcode, lines, alignment_score_filter))
+        if umi_barcode.split('.')[-1] not in filtered_barcode:
+            continue
+        read = Read(umi_barcode, lines, alignment_score_filter)
+        reads.append(read)
     return reads
 
-def generate_bed_file(variants:list[Variant]):
-    
+def generate_bed_file(opt, variants:list[Variant]):
+    '''
+    Generate BED file, which contains var, var_start, var_end
+    '''
     bed_file = tempfile.NamedTemporaryFile(delete=False, mode='wt')
     for var in variants:
         bed_file.write('{}\t{}\t{}\n'.format(var.col_chr, var.start, var.end))
     bed_file.close()
     return bed_file.name
-
-
-if __name__ == '__main__':
-    import argparse
-    opt = argparse.Namespace()
-    opt.restrict_chr = 'chr1'
-    opt.vcf_path = './data/NA12878_WES_v2_phased_variants.vcf.gz'
-    opt.sample_name = 'NA12878_WES_v2'
-    opt.black_list = None
-    opt.bam_path = './data/NA12878_WES_v2_phased_possorted_bam.bam'
-    opt.mapq_threshold = 60
-    opt.as_quality = 0.05
-
-    processed_vcf = load_vcf(opt)
-    variants, vid_var_map = generate_variants(processed_vcf)
-    bed_file = generate_bed_file(variants)
-    output_sam_path = load_bam(opt, bed_file)
-    reads = generate_reads(opt, output_sam_path)
-    bamline_lengths = collections.Counter(Read.lengths)
-    print(sum(Read.lengths))
-    np.save('./count', bamline_lengths, allow_pickle=True)

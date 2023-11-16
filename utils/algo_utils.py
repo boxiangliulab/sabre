@@ -3,6 +3,10 @@ import collections
 from rich import print
 
 def binary_search(pos:int, variants:list[Variant], right_bound=0):
+    '''
+    Typical binary search,
+    Time complexity: O(logn)
+    '''
 
     left, right = 0, len(variants) - 1
     while left <= right:
@@ -50,8 +54,7 @@ def read_var_map(reads: list[Read], variants: list[Variant], vid_var_map):
 def extract_allele_linkage(read_variants_map: dict):
     '''
     As we need to construct a allele graph, we need to figure out the mapping relationship between alleles and reads.
-    For paired reads, although they are shown to be two Read instance, they share the same qname and they are reads from one common DNA.
-    Thus, alleles from paired reads (different Read instance) but share the same qname SHALL be considered linked.
+    For scRNA data, variants on reads with the same umi-barcode are actually on the same haplotype, thus shall be considered connected.
     '''
     allele_read_matchs = 0
     false_read_matchs = 0
