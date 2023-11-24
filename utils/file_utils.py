@@ -6,7 +6,7 @@ import subprocess
 import os
 from rich import print
 import collections
-import itertools
+import functools
 
 class Variant:
     def __init__(self, col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased) -> None:
@@ -67,19 +67,15 @@ class Bamline:
 class Read:
 
     lengths = []
-    def __init__(self, umi_barcode:str, bamline_list:list[Bamline], alignment_filter, qual_threshold=20, neglect_overlap=True) -> None:
+    def __init__(self, umi_barcode:str, bamline_list:list[Bamline], alignment_filter, qual_threshold=10, neglect_overlap=True) -> None:
         self.umi_barcode = umi_barcode
         self.umi, self.barcode = self.umi_barcode.split('.')
         self.bamline_list = bamline_list
         self.qual_threshold = qual_threshold
         self.alignment_filter = alignment_filter
-        self.neglect_overlap = True
         Read.lengths.append(len(self.bamline_list))
 
         self.extract_read_seq()
-        self.filter_seq_by_quality()
-        if len(self.read_seqs) > 1:
-            self.merge_seqs()
 
     def extract_read_seq(self):
         '''
@@ -95,24 +91,6 @@ class Read:
             self.read_seqs += temp_read_seq
             self.read_quals += temp_qual_seq
             self.read_spans += temp_read_span
-
-    def filter_seq_by_quality(self):
-        '''
-        We first filter the read by quality
-        Any read base pair with QUAL lower than a given quality threshold will be replaced by '.'
-        '''
-        filtered_seqs = []
-
-        for seq, qual in zip(self.read_seqs, self.read_quals):
-            temp_seq = ''
-            for i, q in enumerate(qual):
-                if ord(q) - 33 < self.qual_threshold:
-                    temp_seq += '.'
-                else:
-                    temp_seq += seq[i]
-            filtered_seqs.append(temp_seq)
-
-        self.read_seqs = filtered_seqs
 
     def adjust_read_seq(line:Bamline):
         '''
@@ -162,67 +140,28 @@ class Read:
         
         return adjusted_read_seq, adjusted_qual_seq, spans
     
-    def merge_read_with_qual(read_pair, span_pair, qual_pair, neglect_overlap):
-        '''
-        merge a pair of reads, the final base pair is determined by corresponding quality
-
-        span_pair: [a, b], [c, d]
-        where a <= c <= b
-        '''
-        read_1, read_2 = read_pair
-        (a, b), (c, d) = span_pair
-        qual_1, qual_2 = qual_pair
-
-        conflict_reads = ''
-        conflict_quals = ''
-        # overlapping area
-        for i in range(c, min(b, d) + 1):
-            base_1, q_1 = read_1[i-a], qual_1[i-a]
-            base_2, q_2 = read_2[i-c], qual_2[i-c]
-            # conflict_reads += base_1 if q_1 > q_2 else base_2
-            conflict_reads += '.'
-            conflict_quals += max(q_1, q_2)
-
-        return read_1[:c-a] + conflict_reads+ (read_2[b-c+1:d-c+1] if d>b else read_1[d-a+1:b-a+1]), \
-        qual_1[:c-a] + conflict_quals+ (qual_2[b-c+1:d-c+1] if d>b else qual_1[d-a+1:b-a+1]), (a, max(b, d))
-
-    def merge_seqs(self):
-        '''
-        merge reads with overlapping spans.
-        '''
-        merge_result = []
-        mixed_input = list(zip(self.read_seqs, self.read_quals, self.read_spans))
-        mixed_input = sorted(mixed_input, key=lambda x: x[2][0], reverse=True)
-        while len(mixed_input) > 1:
-            (read_1, qual_1, span_1) = mixed_input.pop()
-            (read_2, qual_2, span_2) = mixed_input.pop()
-            if span_2[0] > span_1[1]:
-                # no overlap
-                merge_result.append((read_1, qual_1, span_1))
-                mixed_input.append((read_2, qual_2, span_2))
-            else:
-                # share overlap
-                mixed_input.append(Read.merge_read_with_qual((read_1, read_2), (span_1, span_2), (qual_1, qual_2), self.neglect_overlap))
-        
-        merge_result += mixed_input
-        self.read_seqs, self.read_quals, self.read_spans = list(zip(*merge_result))
-
 
     def get_base_pair_by_var_pos(self, var_pos):
         '''
         Given a variant position on genome, return the corresponding base pair on the read.
         '''
-
-        for read, (left, right) in zip(self.read_seqs, self.read_spans):
+        bp_qual_map = collections.defaultdict(list)
+        for read, quals, (left, right) in zip(self.read_seqs, self.read_quals, self.read_spans):
             if var_pos <= right and var_pos >= left:
                 pos = var_pos - left
                 base_pair = read[pos]
+                qual = quals[pos]
+                bp_qual_map[base_pair].append(qual)
 
-                if base_pair == '.':
-                    # Means the variant actually do not appear in this read.
-                    # It is covered by a deletion
-                    return None
-                return base_pair
+        if len(bp_qual_map) == 1:
+            return [list(bp_qual_map.keys())[0] for i in range(len(list(bp_qual_map.values())[0]))] if ord(max(list(bp_qual_map.values()))[0]) - 33 >= self.qual_threshold else None
+        else:
+            pros = functools.reduce(lambda a,b: a*b,list(map(lambda x: 10 ** (-(ord(x)-33)/10),list(bp_qual_map.values())[0])))
+            cons = functools.reduce(lambda a,b: a*b,list(map(lambda x: 10 ** (-(ord(x)-33)/10),list(bp_qual_map.values())[1])))
+            leading_bp = [list(bp_qual_map.keys())[0] for i in range(len(list(bp_qual_map.values())[0]))] if pros < cons else [list(bp_qual_map.keys())[1] for i in range(len(list(bp_qual_map.values())[1]))]
+
+            if min(pros, cons)/(pros + cons) < 0.5:
+                return leading_bp
         return None
 
 def load_barcode_list(opt):
@@ -440,3 +379,4 @@ def generate_bed_file(opt, variants:list[Variant]):
         bed_file.write('{}\t{}\t{}\n'.format(opt.restrict_chr, var.start, var.end))
     bed_file.close()
     return bed_file.name
+

@@ -58,7 +58,8 @@ def extract_allele_linkage(read_variants_map: dict):
     '''
     allele_read_matchs = 0
     false_read_matchs = 0
-
+    vars_ = set()
+    qnames = []
     # TO deal with paired reads. Map alleles to qnames instead of reads.
     qname_alleles_map = collections.defaultdict(list)
     for read, variants in read_variants_map.items():
@@ -70,10 +71,10 @@ def extract_allele_linkage(read_variants_map: dict):
             if allele == None:
                 false_read_matchs += 1
                 continue
+            times = len(allele)
             allele_read_matchs += 1
-            geno = var.get_geno_by_allele(allele)
-            qname_alleles_map[read.umi_barcode].append(var.unique_id+':'+str(geno))
-
+            geno = var.get_geno_by_allele(allele[0])
+            qname_alleles_map[read.umi_barcode]+=[var.unique_id+':'+str(geno)]*times
     # there's two ways of implementation
     # first is just link the closest pair of alleles on reads
     # second is link a allele with all the alleles on a same read.
@@ -86,7 +87,8 @@ def extract_allele_linkage(read_variants_map: dict):
         for i in range(0, len(allele_list)-1):
             for j in range(i+1, len(allele_list)):
                 allele_linkage_map[(allele_list[i], allele_list[j])] += 1
-
-    print('There are {} pseudo matches, among which {} are considered matched and {} are false matches'\
-          .format(allele_read_matchs+false_read_matchs, allele_read_matchs, false_read_matchs))
+                vars_.add(allele_list[i].split(':')[0])
+                vars_.add(allele_list[j].split(':')[0])
+    print('There are {} pseudo matches, {} variants has at least 1 neighbors, among which {} are considered matched and {} are false matches'\
+          .format(allele_read_matchs+false_read_matchs, len(vars_), allele_read_matchs, false_read_matchs))
     return allele_linkage_map
