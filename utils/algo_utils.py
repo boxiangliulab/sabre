@@ -73,7 +73,7 @@ def extract_allele_linkage(read_variants_map: dict):
             times = len(allele)
             allele_read_matchs += 1
             geno = var.get_geno_by_allele(allele[0])
-            qname_alleles_map[read.umi_barcode]+=(var.unique_id+':'+str(geno), times)
+            qname_alleles_map[read.umi_barcode].append((var.unique_id+':'+str(geno), times))
     # there's two ways of implementation
     # first is just link the closest pair of alleles on reads
     # second is link a allele with all the alleles on a same read.
