@@ -73,7 +73,7 @@ def extract_allele_linkage(read_variants_map: dict):
             times = len(allele)
             allele_read_matchs += 1
             geno = var.get_geno_by_allele(allele[0])
-            qname_alleles_map[read.umi_barcode]+=(var.unique_id+':'+str(geno), times)
+            qname_alleles_map[read.umi_barcode].append((var.unique_id+':'+str(geno), times))
     # there's two ways of implementation
     # first is just link the closest pair of alleles on reads
     # second is link a allele with all the alleles on a same read.
@@ -84,7 +84,7 @@ def extract_allele_linkage(read_variants_map: dict):
     for qname, allele_list in qname_alleles_map.items():
         for i in range(0, len(allele_list)-1):
             for j in range(i+1, len(allele_list)):
-                allele_linkage_map[(allele_list[i][0], allele_list[j][0])] += min(allele_list[i][0], allele_list[j][0])
+                allele_linkage_map[(allele_list[i][0], allele_list[j][0])] += min(allele_list[i][1], allele_list[j][1])
                 vars_.add(allele_list[i][0].split(':')[0])
                 vars_.add(allele_list[j][0].split(':')[0])
     print('There are {} pseudo matches, {} variants has at least 1 neighbors, among which {} are considered matched and {} are false matches'\

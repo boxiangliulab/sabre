@@ -238,11 +238,25 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
                 if opt.remove_node == 'auto':
                     if len(cleared_sg.nodes) < 100:
                         num_remove_node = 1
+                        _1_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=num_remove_node)
+                    elif len(cleared_sg) < 1000:
+                        num_remove_node = int(len(cleared_sg.nodes) * 0.2)
+                        _1_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=num_remove_node)
                     else:
-                        num_remove_node = int(math.floor(len(cleared_sg.nodes)*0.2))
+                        while True:
+                            cleared_sg = nx.Graph(cleared_sg)
+                            edge_weights = list(nx.get_edge_attributes(cleared_sg, 'weight').values())
+                            cut_threshold = np.percentile(edge_weights, opt.edge_threshold)
+                            edges_to_remove = [(a,b) for a,b,attrs in cleared_sg.edges(data=True) if attrs['weight']<=cut_threshold]
+                            cleared_sg.remove_edges_from(edges_to_remove)
+                            _1_partitions = nx.connected_components(cleared_sg)
+                            if max([len(c) for c in _1_partitions]) < 100:
+                                break
                 else:
                     num_remove_node = int(opt.remove_node)
-                _1_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=num_remove_node)
+                    _1_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=num_remove_node)
+
+                
                 for partition in _1_partitions:
                 
                     if find_conflict_alleles(sg.subgraph(partition)) == []:
