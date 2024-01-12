@@ -159,8 +159,8 @@ class Read:
             pros = functools.reduce(lambda a,b: a*b,list(map(lambda x: 10 ** (-(ord(x)-33)/10),list(bp_qual_map.values())[0])))
             cons = functools.reduce(lambda a,b: a*b,list(map(lambda x: 10 ** (-(ord(x)-33)/10),list(bp_qual_map.values())[1])))
             leading_bp = [list(bp_qual_map.keys())[0] for i in range(len(list(bp_qual_map.values())[0]))] if pros < cons else [list(bp_qual_map.keys())[1] for i in range(len(list(bp_qual_map.values())[1]))]
-
-            if min(pros, cons)/(pros + cons) < 0.5:
+            # print(pros, cons, min(pros, cons)/(pros + cons), str(bp_qual_map))
+            if min(pros, cons)/(pros + cons) < 0.05:
                 return leading_bp
         return None
 
@@ -356,8 +356,8 @@ def generate_reads(opt, output_sam_path):
     umi_cnt_threshold = 0
     filtered_barcode = set(filter(lambda x: barcode_umi_cnt[x]>umi_cnt_threshold, barcode_umi_cnt.keys()))
 
-    print('Received {} barcodes in total, after filtered #UMI less than {}, {} barcodes taken, {} barcodes omitted.'.\
-          format(len(barcode_umi_cnt.keys()), umi_cnt_threshold, len(filtered_barcode), len(barcode_umi_cnt.keys())-len(filtered_barcode)))
+    # print('Received {} barcodes in total, after filtered #UMI less than {}, {} barcodes taken, {} barcodes omitted.'.\
+    #      format(len(barcode_umi_cnt.keys()), umi_cnt_threshold, len(filtered_barcode), len(barcode_umi_cnt.keys())-len(filtered_barcode)))
 
     # Filter these reads by alignment score
     alignment_score_filter = np.percentile(alignment_scores, opt.as_quality*100)
@@ -376,7 +376,7 @@ def generate_bed_file(opt, variants:list[Variant]):
     '''
     bed_file = tempfile.NamedTemporaryFile(delete=False, mode='wt')
     for var in variants:
-        bed_file.write('{}\t{}\t{}\n'.format(opt.restrict_chr, var.start, var.end))
+        bed_file.write('{}\t{}\t{}\n'.format(var.col_chr, var.start, var.end))
     bed_file.close()
     return bed_file.name
 

@@ -35,14 +35,16 @@ def output_graph_weights(opt, G:nx.Graph, vid_var_map):
     np.save('right_edge_weights', right_edge_weights)
     np.save('wrong_edge_weights', wrong_edge_weights)
 
-def create_graph(opt, allele_linkage_map, vid_var_map):
+def create_graph(opt, allele_linkage_map, var_barcode_map):
     '''
     Use allele linkage to create allele linkage graph.
-    Notablly, in comparison with phaser, infomations of linkage by read are completely reserved.
+    Notablly, in comparison with phaser, informations of linkage by read are completely reserved.
     '''
     G = nx.Graph()
     for (alle_1, alle_2), weight in allele_linkage_map.items():
         G.add_edges_from([(alle_1, alle_2, {'weight': weight})])
+    for allele, barcodes in var_barcode_map:
+        G.nodes[allele]['cells'] = barcodes
     G = graph_aggregation_and_update(G)
     return G
 
@@ -210,6 +212,27 @@ def split_graph_by_fiedler_vector(sg:nx.Graph, graph_name='', threshold=1e-2):
     
     return final_partitions
 
+def split_graph_by_extracting_singular_cells(opt, sg:nx.Graph):
+    '''
+    If removing one cell can resolve the conflict, then why not?
+    '''
+    if len(sg.nodes) <= 1:
+        return []
+    
+    conflict_variants = find_conflict_alleles(sg)
+    candidate_barcodes = []
+    for cv in conflict_variants:
+        allele_0, allele_1 = '{}:0'.format(cv), '{}:1'.format(cv)
+        sp = nx.shortest_path(sg, allele_0, allele_1)
+        if len(sp) == 3:
+            critical_node = sp[1]
+            critical_barcodes_0 = list(set(sg.nodes[allele_0]['cells'].keys()).intersection(set(sg.nodes[critical_node]['cells'].keys())))
+            critical_barcodes_1 = list(set(sg.nodes[allele_1]['cells'].keys()).intersection(set(sg.nodes[critical_node]['cells'].keys())))
+            candidate_barcodes.append((critical_barcodes_0, critical_barcodes_1))
+    nodes = list(map(lambda x: list(sg.nodes)[x], conflict_variants))
+    
+
+
 def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]):
     '''
     First, remove edges with 5% minimum edges weights.
@@ -238,25 +261,11 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
                 if opt.remove_node == 'auto':
                     if len(cleared_sg.nodes) < 100:
                         num_remove_node = 1
-                        _1_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=num_remove_node)
-                    elif len(cleared_sg) < 1000:
-                        num_remove_node = int(len(cleared_sg.nodes) * 0.2)
-                        _1_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=num_remove_node)
                     else:
-                        while True:
-                            cleared_sg = nx.Graph(cleared_sg)
-                            edge_weights = list(nx.get_edge_attributes(cleared_sg, 'weight').values())
-                            cut_threshold = np.percentile(edge_weights, opt.edge_threshold)
-                            edges_to_remove = [(a,b) for a,b,attrs in cleared_sg.edges(data=True) if attrs['weight']<=cut_threshold]
-                            cleared_sg.remove_edges_from(edges_to_remove)
-                            _1_partitions = nx.connected_components(cleared_sg)
-                            if max([len(c) for c in _1_partitions]) < 100:
-                                break
+                        num_remove_node = int(math.floor(len(cleared_sg.nodes)*0.2))
                 else:
                     num_remove_node = int(opt.remove_node)
-                    _1_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=num_remove_node)
-
-                
+                _1_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=num_remove_node)
                 for partition in _1_partitions:
                 
                     if find_conflict_alleles(sg.subgraph(partition)) == []:

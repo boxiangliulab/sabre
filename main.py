@@ -42,11 +42,11 @@ def main(opt):
     prettify_print_header(3, 'Mapping Variants to Reads [pink1 bold]COMPLETED![/pink1 bold]!', '\n\n')
 
     prettify_print_header(4, 'Mapping Alleles to Reads...', end='\r')
-    allele_linkage_map = algo_utils.extract_allele_linkage(read_variants_map)
+    allele_linkage_map, var_barcode_map = algo_utils.extract_allele_linkage(read_variants_map)
     prettify_print_header(4, 'Mapping Alleles to Reads [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(5, 'Creating the allele linkage graph...', end='\r')
-    allele_linkage_graph = graph_utils.create_graph(opt, allele_linkage_map, vid_var_map)
+    allele_linkage_graph = graph_utils.create_graph(opt, allele_linkage_map, var_barcode_map)
     prettify_print_header(5, 'Creating the allele linkage graph [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(6, 'Finding connected components and save them...', end='\r')
