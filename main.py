@@ -42,7 +42,7 @@ def main(opt):
     prettify_print_header(3, 'Mapping Variants to Reads [pink1 bold]COMPLETED![/pink1 bold]!', '\n\n')
 
     prettify_print_header(4, 'Mapping Alleles to Reads...', end='\r')
-    allele_linkage_map, var_barcode_map = algo_utils.extract_allele_linkage(read_variants_map)
+    allele_linkage_map, var_barcode_map, mean, var, n = algo_utils.extract_allele_linkage(read_variants_map)
     prettify_print_header(4, 'Mapping Alleles to Reads [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(5, 'Creating the allele linkage graph...', end='\r')
@@ -62,11 +62,12 @@ def main(opt):
     prettify_print_header(8, 'Reporting nonconflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(9, 'Resolving conflicted subgraphs...', end='\r')
-    resolved_conflicted_nodes = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, phased_vars)
+    resolved_conflicted_nodes, removed_edges = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, phased_vars)
     prettify_print_header(9, 'Resolving conflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(10, 'Reporting phasing result...', end='\r')
     total_hap, correct_hap, total_predict, correct_predict, total_nodes = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map)
+    output_utils.report_singular_cells(opt, removed_edges, mean=mean, var=var, n=n)
     prettify_print_header(10, 'Reporting phasing result [pink1 bold]COMPLETED![/pink1 bold]', '\n')
     print("Phasing on chromosome {} [pink1 bold]COMPLETED![/pink1 bold]".format(opt.restrict_chr))
     print("[green bold]Phased Vars:\t[/green bold] {} variants in total.".format(total_nodes))

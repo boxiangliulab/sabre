@@ -43,7 +43,10 @@ def create_graph(opt, allele_linkage_map, var_barcode_map):
     G = nx.Graph()
     for (alle_1, alle_2), weight in allele_linkage_map.items():
         G.add_edges_from([(alle_1, alle_2, {'weight': weight})])
-    for allele, barcodes in var_barcode_map:
+
+    for allele, barcodes in var_barcode_map.items():
+        if allele not in G.nodes:
+            continue
         G.nodes[allele]['cells'] = barcodes
     G = graph_aggregation_and_update(G)
     return G
@@ -241,6 +244,7 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
     We then recursively cut the graph by fiedler cut till no conflict_alleles are presented.
     '''
     resolved_nodes = []
+    removed_edges = []
     for sg in subgraphs:
 
         sg = nx.Graph(sg)
@@ -274,6 +278,8 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
                     final_partitions += split_graph_by_fiedler_vector(sg.subgraph(partition), graph_name, threshold=opt.fiedler_threshold)
             else:
                 final_partitions += split_graph_by_fiedler_vector(cleared_sg, graph_name, threshold=opt.fiedler_threshold)
+            
+            residual_graph = nx.Graph(sg)
 
             for partition in final_partitions:
                 resolved_subgraph = cleared_sg.subgraph(partition)
@@ -281,8 +287,11 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
                     visualize_graph(sg, '{}_1'.format(graph_name))
                     visualize_graph(resolved_subgraph, '{}_0'.format(graph_name))
                 if len(partition) > 1: resolved_nodes.append(list(partition))
+                residual_graph = nx.difference(residual_graph, sg.subgraph(partition))
+
+        removed_edges.append(residual_graph)        
         
-    return resolved_nodes
+    return resolved_nodes, removed_edges
 
 def extract_nonconflicted_nodes(subgraphs: list[nx.Graph]):
     '''

@@ -1,6 +1,7 @@
 from utils.file_utils import Read, Variant
 import collections
 from rich import print
+import numpy as np
 
 def binary_search(pos:int, variants:list[Variant], right_bound=0):
     '''
@@ -57,7 +58,8 @@ def extract_allele_linkage(read_variants_map: dict):
     allele_read_matchs = 0
     false_read_matchs = 0
     vars_ = set()
-    barcode_allele_map = collections.defaultdict(collections.defaultdict(int))
+    barcode_allele_map = collections.defaultdict(dict)
+    barcode_allele_link_values = []
     # TO deal with paired reads. Map alleles to qnames instead of reads.
     qname_alleles_map = collections.defaultdict(list)
     for read, variants in read_variants_map.items():
@@ -73,6 +75,8 @@ def extract_allele_linkage(read_variants_map: dict):
             allele_read_matchs += 1
             geno = var.get_geno_by_allele(allele[0])
             qname_alleles_map[read.umi_barcode].append(var.unique_id+':'+str(geno)+'*'+str(times))
+            if var.unique_id+':'+str(geno) not in barcode_allele_map[read.umi_barcode.split('.')[1]].keys():
+                barcode_allele_map[read.umi_barcode.split('.')[1]][var.unique_id+':'+str(geno)] = 0
             barcode_allele_map[read.umi_barcode.split('.')[1]][var.unique_id+':'+str(geno)]+=1
     
     # figure out each allele is discovered on which set of cells
@@ -80,7 +84,8 @@ def extract_allele_linkage(read_variants_map: dict):
     for barcode, allele_counter in barcode_allele_map.items():
         for allele, count in list(allele_counter.items()):
             allele_barcode_map[allele].append((barcode, count))
-            
+            barcode_allele_link_values.append(count)
+    mean, var, n = np.mean(barcode_allele_link_values), np.var(barcode_allele_link_values, ddof=1), len(barcode_allele_link_values)
     # there's two ways of implementation
     # first is just link the closest pair of alleles on reads
     # second is link a allele with all the alleles on a same read.
@@ -98,4 +103,4 @@ def extract_allele_linkage(read_variants_map: dict):
                 vars_.add(allele_list[j].split(':')[0])
     print('There are {} pseudo matches, among which {} are considered matched and {} are false matches, {} variants has at least 1 neighbors.'\
           .format(allele_read_matchs+false_read_matchs, allele_read_matchs, false_read_matchs, len(vars_)))
-    return allele_linkage_map, allele_barcode_map
+    return allele_linkage_map, allele_barcode_map, mean, var, n

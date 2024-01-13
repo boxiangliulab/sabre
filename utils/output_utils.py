@@ -1,5 +1,8 @@
 import networkx as nx
 import matplotlib.pyplot as plt
+import collections
+import scipy.stats
+import math
 
 def get_opposite_allele(allele, is_opposite=True):
     '''
@@ -122,3 +125,40 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
             f.write('{}\t{}\t{}\t{}\n'.format(vids_string, predicted_phasing_str, gt_phasing_str, is_correct))
 
     return total_hap, correct_hap, total_predict, correct_predict, total_nodes
+
+
+def report_singular_cells(opt, removed_edges:list[nx.Graph], mean, var, n):
+    '''
+    Report removed edges during resolving confliced graphs.
+    '''
+    barcode_pair_map = collections.defaultdict(dict)
+    for sg in removed_edges:
+        barcode_node_map = collections.defaultdict(list)
+        for node in list(sg.nodes):
+            for barcode, count in sg.nodes[node]['cells']:
+                barcode_node_map[barcode].append((node, count))
+        for barcode, node_list in barcode_node_map.items():
+            if len(node_list) == 1:
+                continue
+            node_list = sorted(node_list, key=lambda x: x[0])
+            for i in range(0, len(node_list) - 1):
+                for j in range(1, len(node_list)):
+                    (left_node, left_count), (right_node, right_count) = node_list[i], node_list[j]
+                    oppo_left_node, oppo_right_node = get_opposite_allele(left_node), get_opposite_allele(right_node)
+                    link_value = min(left_count, right_count)
+                    if (left_node, right_node) in barcode_pair_map[barcode].keys():
+                        barcode_pair_map[barcode][(left_node, right_node)] += link_value
+                    elif (oppo_left_node, oppo_right_node) in barcode_pair_map[barcode].keys():
+                        barcode_pair_map[barcode][(oppo_left_node, oppo_right_node)] += link_value
+                    else:
+                        barcode_pair_map[barcode][(left_node, right_node)] = 0
+
+    # output
+    df = n-1
+    T = scipy.stats.t(df)
+    with open('singular_cell_linkage.txt', 'w') as f:
+        f.write('barcode\tvar\tgeno\tp-value\n')
+    for barcode, allele_pairs in barcode_pair_map.items():
+        for allele_pair, link_value in allele_pairs:
+            p_value = T.cdf((mean-link_value)/math.sqrt(var/10))
+            f.write('{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], allele_pair)), ''.join(map(lambda x:x.split(':')[1], allele_pair)), p_value))
