@@ -2,6 +2,7 @@ import networkx as nx
 import collections
 import numpy as np
 import math
+import tqdm
 
 def output_graph_weights(opt, G:nx.Graph, vid_var_map):
 
@@ -48,8 +49,17 @@ def create_graph(opt, allele_linkage_map, var_barcode_map):
         if allele not in G.nodes:
             continue
         G.nodes[allele]['cells'] = barcodes
+    
+    weights = []
+    for a, b in tqdm.tqdm(list(G.edges)):
+        left_node_barcodes, right_node_barcodes = G.nodes[a]['cells'], G.nodes[b]['cells']
+        for left_barcode, left_count in left_node_barcodes:
+            for right_barcode, right_count in right_node_barcodes:
+                if left_barcode == right_barcode:
+                    weights.append(min(left_count, right_count))
+
     G = graph_aggregation_and_update(G)
-    return G
+    return G, np.mean(weights), np.var(weights, ddof=1), len(weights)
 
 def visualize_graph(G:nx.Graph, save_name):
     '''
@@ -234,7 +244,13 @@ def split_graph_by_extracting_singular_cells(opt, sg:nx.Graph):
             candidate_barcodes.append((critical_barcodes_0, critical_barcodes_1))
     nodes = list(map(lambda x: list(sg.nodes)[x], conflict_variants))
     
-
+def calculate_graph_difference(G:nx.Graph, H:nx.Graph):
+    '''
+    Remove all edges in H from G.
+    '''
+    G = nx.Graph(G)
+    G.remove_edges_from(list(H.edges))
+    return G
 
 def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]):
     '''
@@ -287,9 +303,11 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
                     visualize_graph(sg, '{}_1'.format(graph_name))
                     visualize_graph(resolved_subgraph, '{}_0'.format(graph_name))
                 if len(partition) > 1: resolved_nodes.append(list(partition))
-                residual_graph = nx.difference(residual_graph, sg.subgraph(partition))
+                residual_graph = calculate_graph_difference(residual_graph, sg.subgraph(partition))
 
-        removed_edges.append(residual_graph)        
+        for component in nx.connected_components(residual_graph):
+            if len(component) > 1:
+                removed_edges.append(residual_graph.subgraph(component))        
         
     return resolved_nodes, removed_edges
 

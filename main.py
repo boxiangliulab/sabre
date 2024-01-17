@@ -39,14 +39,17 @@ def main(opt):
     # We only need to calculate whether the $end$ of an variant lies between a read.
     prettify_print_header(3, 'Mapping Variants to Reads...', end='\r')
     read_variants_map = algo_utils.read_var_map(reads, variants, vid_var_map)
+    del(reads)
+    del(variants)
     prettify_print_header(3, 'Mapping Variants to Reads [pink1 bold]COMPLETED![/pink1 bold]!', '\n\n')
 
     prettify_print_header(4, 'Mapping Alleles to Reads...', end='\r')
     allele_linkage_map, var_barcode_map, mean, var, n = algo_utils.extract_allele_linkage(read_variants_map)
+    del(read_variants_map)
     prettify_print_header(4, 'Mapping Alleles to Reads [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(5, 'Creating the allele linkage graph...', end='\r')
-    allele_linkage_graph = graph_utils.create_graph(opt, allele_linkage_map, var_barcode_map)
+    allele_linkage_graph, min_mean, min_var, min_n = graph_utils.create_graph(opt, allele_linkage_map, var_barcode_map)
     prettify_print_header(5, 'Creating the allele linkage graph [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(6, 'Finding connected components and save them...', end='\r')
@@ -66,8 +69,9 @@ def main(opt):
     prettify_print_header(9, 'Resolving conflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(10, 'Reporting phasing result...', end='\r')
-    total_hap, correct_hap, total_predict, correct_predict, total_nodes = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map)
-    output_utils.report_singular_cells(opt, removed_edges, mean=mean, var=var, n=n)
+    total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map)
+    output_utils.report_singular_cells(opt, removed_edges, allele_linkage_graph, mean=mean, var=var, n=n)
+    # output_utils.report_singular_cells(opt, removed_edges, allele_linkage_graph, mean=min_mean, var=min_var, n=min_n)
     prettify_print_header(10, 'Reporting phasing result [pink1 bold]COMPLETED![/pink1 bold]', '\n')
     print("Phasing on chromosome {} [pink1 bold]COMPLETED![/pink1 bold]".format(opt.restrict_chr))
     print("[green bold]Phased Vars:\t[/green bold] {} variants in total.".format(total_nodes))
