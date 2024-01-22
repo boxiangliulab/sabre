@@ -67,7 +67,7 @@ def de_duplicate(alleles_list:list[list[str]]):
         for i in range(len(alleles)-1):
             graph.add_edge(get_opposite_allele(alleles[i], is_opposite), get_opposite_allele(alleles[i+1], is_opposite))
     
-    return list(nx.connected_components(graph))
+    return graph
 
 def draw_graph_with_weights(folder, G:nx.Graph):
     '''
@@ -96,7 +96,8 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
     already_reported_set = []
     total_nodes = 0
 
-    final_haplotypes = de_duplicate(nonconflicted_nodes + resolved_conflicted_nodes)
+    final_graph = de_duplicate(nonconflicted_nodes + resolved_conflicted_nodes)
+    final_haplotypes = list(nx.connected_components(final_graph))
 
     with open('./output/chr_{}_haplotypes.tsv'.format(opt.restrict_chr), 'w') as f:
         f.write('haplotype\tpredicted_phasing\tgt_phasing\tcorrection\n')
@@ -124,10 +125,11 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
 
             f.write('{}\t{}\t{}\t{}\n'.format(vids_string, predicted_phasing_str, gt_phasing_str, is_correct))
 
-    return total_hap, correct_hap, total_predict, correct_predict, total_nodes
+    return total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph
 
 
-def report_singular_cells(opt, removed_edges:list[nx.Graph], mean, var, n):
+
+def deprecated_report_singular_cells(opt, removed_edges:list[nx.Graph], final_graph:list[nx.Graph], mean, var, n):
     '''
     Report removed edges during resolving confliced graphs.
     '''
@@ -140,25 +142,113 @@ def report_singular_cells(opt, removed_edges:list[nx.Graph], mean, var, n):
         for barcode, node_list in barcode_node_map.items():
             if len(node_list) == 1:
                 continue
-            node_list = sorted(node_list, key=lambda x: x[0])
+            node_list = sorted(node_list, key=lambda x: int(x[0].split('_')[1]))
             for i in range(0, len(node_list) - 1):
-                for j in range(1, len(node_list)):
+                for j in range(i+1, len(node_list)):
                     (left_node, left_count), (right_node, right_count) = node_list[i], node_list[j]
+                    if(left_node, right_node) not in sg.edges:
+                        continue
+                    if left_node.split(':')[0] == right_node.split(':')[0]:
+                        continue
                     oppo_left_node, oppo_right_node = get_opposite_allele(left_node), get_opposite_allele(right_node)
+                    if left_node in final_graph.nodes and right_node in final_graph.nodes:
+                        if nx.has_path(final_graph, left_node, right_node):
+                            continue
+                    if oppo_left_node in final_graph.nodes and oppo_right_node in final_graph.nodes:
+                        if nx.has_path(final_graph, oppo_left_node, oppo_right_node):
+                            continue                
                     link_value = min(left_count, right_count)
                     if (left_node, right_node) in barcode_pair_map[barcode].keys():
                         barcode_pair_map[barcode][(left_node, right_node)] += link_value
                     elif (oppo_left_node, oppo_right_node) in barcode_pair_map[barcode].keys():
                         barcode_pair_map[barcode][(oppo_left_node, oppo_right_node)] += link_value
                     else:
-                        barcode_pair_map[barcode][(left_node, right_node)] = 0
+                        barcode_pair_map[barcode][(left_node, right_node)] = link_value
 
     # output
     df = n-1
     T = scipy.stats.t(df)
+    all_pairs, selected_pairs = 0, 0
     with open('singular_cell_linkage.txt', 'w') as f:
-        f.write('barcode\tvar\tgeno\tp-value\n')
-    for barcode, allele_pairs in barcode_pair_map.items():
-        for allele_pair, link_value in allele_pairs:
-            p_value = T.cdf((mean-link_value)/math.sqrt(var/10))
-            f.write('{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], allele_pair)), ''.join(map(lambda x:x.split(':')[1], allele_pair)), p_value))
+        f.write('barcode\tvar\tgeno\tsupport\tp-value\n')
+        for barcode, allele_pairs in barcode_pair_map.items():
+            for allele_pair, link_value in allele_pairs.items():
+                p_value = T.cdf((mean-link_value)/math.sqrt(var/10))
+                if p_value > 0.05:
+                    continue
+                f.write('{}\t{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], allele_pair)), ''.join(map(lambda x:x.split(':')[1], allele_pair)),link_value, p_value))
+    
+    print()
+
+def report_singular_cells(opt, removed_edges:list[nx.Graph], G:list[nx.Graph], final_graph:nx.Graph, vid_var_map, mean, var, n):
+    '''
+    Report removed edges during resolving confliced graphs.
+    '''
+    barcode_pair_map = collections.defaultdict(dict)
+    for sg in removed_edges:
+        calculated_pairs = set()
+        for left_node, right_node in list(sg.edges):
+            if (left_node, right_node) in calculated_pairs:
+                continue
+            oppo_left_node, oppo_right_node = get_opposite_allele(left_node), get_opposite_allele(right_node)
+
+            if left_node in final_graph.nodes and right_node in final_graph.nodes:
+                if nx.has_path(final_graph, left_node, right_node):
+                    continue
+            if oppo_left_node in final_graph.nodes and oppo_right_node in final_graph.nodes:
+                if nx.has_path(final_graph, oppo_left_node, oppo_right_node):
+                    continue        
+
+            calculated_pairs.add((left_node, right_node))
+            calculated_pairs.add((oppo_left_node, oppo_right_node))
+
+            left_barcode_set = set(map(lambda x: x[0], G.nodes[left_node]['cells']))
+            right_barcode_set = set(map(lambda x: x[0], G.nodes[right_node]['cells']))
+            oppo_left_barcode_set = set(map(lambda x: x[0], G.nodes[oppo_left_node]['cells'])) if oppo_left_node in G.nodes else set()
+            oppo_right_barcode_set = set(map(lambda x: x[0], G.nodes[oppo_right_node]['cells'])) if oppo_right_node in G.nodes else set()
+
+            left_barcode_count_map = dict(G.nodes[left_node]['cells'])
+            right_barcode_count_map = dict(G.nodes[right_node]['cells'])
+            oppo_left_barcode_count_map = dict(G.nodes[oppo_left_node]['cells']) if oppo_left_node in G.nodes else set()
+            oppo_right_barcode_count_map = dict(G.nodes[oppo_right_node]['cells']) if oppo_right_node in G.nodes else set()
+
+            left_node_singular_barcodes = left_barcode_set - oppo_right_barcode_set
+            right_node_singular_barcodes = right_barcode_set - oppo_left_barcode_set
+            oppo_left_node_singular_barcodes = oppo_left_barcode_set - right_barcode_set
+            oppo_right_node_singular_barcodes = oppo_right_barcode_set - left_barcode_set
+
+            cis_edge_barcodes = left_node_singular_barcodes & right_node_singular_barcodes
+            trans_edge_barcodes = oppo_left_node_singular_barcodes & oppo_right_node_singular_barcodes
+
+            for barcode in cis_edge_barcodes:
+                if (left_node, right_node) in barcode_pair_map[barcode]:
+                    barcode_pair_map[barcode][(left_node,right_node)] += min(left_barcode_count_map[barcode], right_barcode_count_map[barcode])
+                elif (oppo_left_node, oppo_right_node) in barcode_pair_map[barcode]:
+                    barcode_pair_map[barcode][(oppo_left_node, oppo_right_node)] += min(left_barcode_count_map[barcode], right_barcode_count_map[barcode])
+                else:
+                    barcode_pair_map[barcode][(left_node,right_node)] = min(left_barcode_count_map[barcode], right_barcode_count_map[barcode])
+            
+            for barcode in trans_edge_barcodes:
+                if (oppo_left_node, oppo_right_node) in barcode_pair_map[barcode]:
+                    barcode_pair_map[barcode][(oppo_left_node, oppo_right_node)] += min(oppo_left_barcode_count_map[barcode], oppo_right_barcode_count_map[barcode])
+                elif (left_node, right_node) in barcode_pair_map[barcode]:
+                    barcode_pair_map[barcode][(left_node, right_node)] += min(oppo_left_barcode_count_map[barcode], oppo_right_barcode_count_map[barcode])
+                else:
+                    barcode_pair_map[barcode][(oppo_left_node, oppo_right_node)] = min(oppo_left_barcode_count_map[barcode], oppo_right_barcode_count_map[barcode])
+
+    # output
+    df = n-1
+    T = scipy.stats.t(df)
+    all_pairs, selected_pairs = 0, 0
+    with open('singular_cell_linkage_{}.txt'.format(opt.restrict_chr), 'w') as f:
+        f.write('barcode\tvar\tgeno\tsupport\tp-value\tcorrect\n')
+        for barcode, allele_pairs in barcode_pair_map.items():
+            for allele_pair, link_value in allele_pairs.items():
+                p_value = T.cdf((mean-link_value)/math.sqrt(var/10))
+                if p_value > 0.05:
+                    continue
+                gt_phasing_str = ''.join(list(map(lambda x: vid_var_map[x].genotype_string.split('|')[0] if vid_var_map[x].is_phased else '-', map(lambda x:x.split(':')[0], allele_pair))))
+                is_correct = 0
+                if check_haplotype(gt_phasing_str, ''.join(map(lambda x:x.split(':')[1], allele_pair))):
+                    is_correct = 1
+                f.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], allele_pair)), ''.join(map(lambda x:x.split(':')[1], allele_pair)),link_value, p_value, is_correct))

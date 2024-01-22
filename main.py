@@ -70,7 +70,7 @@ def main(opt):
 
     prettify_print_header(10, 'Reporting phasing result...', end='\r')
     total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map)
-    output_utils.report_singular_cells(opt, removed_edges, allele_linkage_graph, mean=mean, var=var, n=n)
+    output_utils.report_singular_cells(opt, removed_edges, allele_linkage_graph, final_graph, vid_var_map, mean=mean, var=var, n=n)
     # output_utils.report_singular_cells(opt, removed_edges, allele_linkage_graph, mean=min_mean, var=min_var, n=min_n)
     prettify_print_header(10, 'Reporting phasing result [pink1 bold]COMPLETED![/pink1 bold]', '\n')
     print("Phasing on chromosome {} [pink1 bold]COMPLETED![/pink1 bold]".format(opt.restrict_chr))

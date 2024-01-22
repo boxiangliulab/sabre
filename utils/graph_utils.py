@@ -50,13 +50,13 @@ def create_graph(opt, allele_linkage_map, var_barcode_map):
             continue
         G.nodes[allele]['cells'] = barcodes
     
-    weights = []
-    for a, b in tqdm.tqdm(list(G.edges)):
-        left_node_barcodes, right_node_barcodes = G.nodes[a]['cells'], G.nodes[b]['cells']
-        for left_barcode, left_count in left_node_barcodes:
-            for right_barcode, right_count in right_node_barcodes:
-                if left_barcode == right_barcode:
-                    weights.append(min(left_count, right_count))
+    weights = [1]
+    # for a, b in tqdm.tqdm(list(G.edges)):
+    #     left_node_barcodes, right_node_barcodes = G.nodes[a]['cells'], G.nodes[b]['cells']
+    #     for left_barcode, left_count in left_node_barcodes:
+    #         for right_barcode, right_count in right_node_barcodes:
+    #             if left_barcode == right_barcode:
+    #                 weights.append(min(left_count, right_count))
 
     G = graph_aggregation_and_update(G)
     return G, np.mean(weights), np.var(weights, ddof=1), len(weights)
