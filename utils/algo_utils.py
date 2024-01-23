@@ -58,10 +58,9 @@ def extract_allele_linkage(read_variants_map: dict):
     allele_read_matchs = 0
     false_read_matchs = 0
     vars_ = set()
-    barcode_allele_map = collections.defaultdict(dict)
-    barcode_allele_link_values = []
+    edge_barcode_map = collections.defaultdict(dict)
     # TO deal with paired reads. Map alleles to qnames instead of reads.
-    qname_alleles_map = collections.defaultdict(list)
+    qname_alleles_map = collections.defaultdict(list) 
     for read, variants in read_variants_map.items():
         for var in variants:
             # get the base pair of given read
@@ -75,17 +74,7 @@ def extract_allele_linkage(read_variants_map: dict):
             allele_read_matchs += 1
             geno = var.get_geno_by_allele(allele[0])
             qname_alleles_map[read.umi_barcode].append(var.unique_id+':'+str(geno)+'*'+str(times))
-            if var.unique_id+':'+str(geno) not in barcode_allele_map[read.umi_barcode.split('.')[1]].keys():
-                barcode_allele_map[read.umi_barcode.split('.')[1]][var.unique_id+':'+str(geno)] = 0
-            barcode_allele_map[read.umi_barcode.split('.')[1]][var.unique_id+':'+str(geno)]+=1
-    
-    # figure out each allele is discovered on which set of cells
-    allele_barcode_map = collections.defaultdict(list)
-    for barcode, allele_counter in barcode_allele_map.items():
-        for allele, count in list(allele_counter.items()):
-            allele_barcode_map[allele].append((barcode, count))
-            barcode_allele_link_values.append(count)
-    mean, var, n = np.mean(barcode_allele_link_values), np.var(barcode_allele_link_values, ddof=1), len(barcode_allele_link_values)
+
     # there's two ways of implementation
     # first is just link the closest pair of alleles on reads
     # second is link a allele with all the alleles on a same read.
@@ -98,9 +87,13 @@ def extract_allele_linkage(read_variants_map: dict):
         _, barcode = qname.split('.')
         for i in range(0, len(allele_list)-1):
             for j in range(i+1, len(allele_list)):
-                allele_linkage_map[(allele_list[i].split('*')[0], allele_list[j].split('*')[0])] += 1
+                (allele_1, times_1), (allele_2, times_2) = allele_list[i].split('*'), allele_list[j].split('*')
+                allele_linkage_map[(allele_1, allele_2)] += 1
                 vars_.add(allele_list[i].split(':')[0])
                 vars_.add(allele_list[j].split(':')[0])
+                if barcode not in edge_barcode_map[(allele_1, allele_2)].keys():
+                    edge_barcode_map[(allele_1, allele_2)][barcode] = 0
+                edge_barcode_map[(allele_1, allele_2)][barcode] += 1
     print('There are {} pseudo matches, among which {} are considered matched and {} are false matches, {} variants has at least 1 neighbors.'\
           .format(allele_read_matchs+false_read_matchs, allele_read_matchs, false_read_matchs, len(vars_)))
-    return allele_linkage_map, allele_barcode_map, mean, var,i
+    return allele_linkage_map, edge_barcode_map

@@ -42,24 +42,15 @@ def create_graph(opt, allele_linkage_map, var_barcode_map):
     Notablly, in comparison with phaser, informations of linkage by read are completely reserved.
     '''
     G = nx.Graph()
+    barcode_link_weights = []
     for (alle_1, alle_2), weight in allele_linkage_map.items():
-        G.add_edges_from([(alle_1, alle_2, {'weight': weight})])
-
-    for allele, barcodes in var_barcode_map.items():
-        if allele not in G.nodes:
-            continue
-        G.nodes[allele]['cells'] = barcodes
-    
-    weights = [1]
-    # for a, b in tqdm.tqdm(list(G.edges)):
-    #     left_node_barcodes, right_node_barcodes = G.nodes[a]['cells'], G.nodes[b]['cells']
-    #     for left_barcode, left_count in left_node_barcodes:
-    #         for right_barcode, right_count in right_node_barcodes:
-    #             if left_barcode == right_barcode:
-    #                 weights.append(min(left_count, right_count))
+        barcode_weight_map = var_barcode_map[(alle_1, alle_2)]
+        barcode_link_weights += list(barcode_weight_map.values())
+        G.add_edges_from([(alle_1, alle_2, {'prime_weight': weight, 'barcodes':barcode_weight_map})])
+        assert sum(barcode_weight_map.values()) == weight
 
     G = graph_aggregation_and_update(G)
-    return G, np.mean(weights), np.var(weights, ddof=1), len(weights)
+    return G, np.mean(barcode_link_weights), np.var(barcode_link_weights, ddof=1), len(barcode_link_weights)
 
 def visualize_graph(G:nx.Graph, save_name):
     '''
@@ -261,6 +252,7 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
     '''
     resolved_nodes = []
     removed_edges = []
+    residual_graph = []
     for sg in subgraphs:
 
         sg = nx.Graph(sg)
@@ -335,9 +327,9 @@ def graph_aggregation_and_update(G:nx.Graph):
     for node in G.nodes:
         node_popularity = 0
         for neighbor_node in G.neighbors(node):
-            node_popularity += G.edges[node, neighbor_node]['weight']
+            node_popularity += G.edges[node, neighbor_node]['prime_weight']
         G.nodes[node]['popularity'] = node_popularity
     
     for n_a, n_b in G.edges:
-        G.edges[n_a, n_b]['weight'] = round(G.edges[n_a, n_b]['weight'] / max(G.nodes[n_a]['popularity'] / G.nodes[n_b]['popularity'], G.nodes[n_b]['popularity']/ G.nodes[n_a]['popularity']), 4)
+        G.edges[n_a, n_b]['weight'] = round(G.edges[n_a, n_b]['prime_weight'] / max(G.nodes[n_a]['popularity'] / G.nodes[n_b]['popularity'], G.nodes[n_b]['popularity']/ G.nodes[n_a]['popularity']), 4)
     return G
