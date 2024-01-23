@@ -103,4 +103,4 @@ def extract_allele_linkage(read_variants_map: dict):
                 vars_.add(allele_list[j].split(':')[0])
     print('There are {} pseudo matches, among which {} are considered matched and {} are false matches, {} variants has at least 1 neighbors.'\
           .format(allele_read_matchs+false_read_matchs, allele_read_matchs, false_read_matchs, len(vars_)))
-    return allele_linkage_map, allele_barcode_map, mean, var, n
+    return allele_linkage_map, allele_barcode_map, mean, var,i
