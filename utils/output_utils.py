@@ -184,12 +184,13 @@ def deprecated_report_singular_cells(opt, removed_edges:list[nx.Graph], final_gr
     
     print()
 
-def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx.Graph, vid_var_map, mean, var, n):
+def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx.Graph, allele_linkage_graph:nx.Graph, vid_var_map, mean, var, n):
     '''
     Report removed edges during resolving confliced graphs.
     '''
 
     barcode_pair_map = collections.defaultdict(dict)
+    barcode_pair_neg_map = collections.defaultdict(dict)
     for sg in removed_sub_graphs:
         calculated_pairs = set()
         for l, r in list(sg.edges):
@@ -205,6 +206,24 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
             if oppo_left_node in final_graph.nodes and oppo_right_node in final_graph.nodes:
                 if nx.has_path(final_graph, oppo_left_node, oppo_right_node):
                     continue
+
+            if (oppo_left_node, right_node) in allele_linkage_graph.edges:
+                barcode_weight_map:dict = allele_linkage_graph.edges[(oppo_left_node, right_node)]['barcodes']
+                for barcode, count in sg.edges[(left_node, right_node)]['barcodes'].items():
+                    if (left_node, right_node) not in barcode_pair_neg_map[barcode].keys():
+                        barcode_pair_neg_map[barcode][(left_node, right_node)] = 0
+                    if barcode in barcode_weight_map.keys():
+                        barcode_pair_neg_map[barcode][(left_node, right_node)] += barcode_weight_map[barcode]
+            elif (left_node, oppo_right_node) in allele_linkage_graph.edges:
+                barcode_weight_map:dict = allele_linkage_graph.edges[(left_node, oppo_right_node)]['barcodes']
+                for barcode, count in sg.edges[(left_node, right_node)]['barcodes'].items():
+                    if (left_node, right_node) not in barcode_pair_neg_map[barcode].keys():
+                        barcode_pair_neg_map[barcode][(left_node, right_node)] = 0
+                    if barcode in barcode_weight_map.keys():
+                        barcode_pair_neg_map[barcode][(left_node, right_node)] += barcode_weight_map[barcode]
+            else:
+                for barcode, count in sg.edges[(left_node, right_node)]['barcodes'].items():
+                    barcode_pair_neg_map[barcode][(left_node, right_node)] = 0
             
             for barcode, count in sg.edges[(left_node, right_node)]['barcodes'].items():
                 if (left_node, right_node) not in barcode_pair_map[barcode].keys():
@@ -219,7 +238,7 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
     if not os.path.exists('./output/singular_cells'):
         os.mkdir('./output/singular_cells')
     with open('./output/singular_cells/singular_cell_linkage_{}.txt'.format(opt.restrict_chr), 'w') as f:
-        f.write('barcode\tvar\tgeno\tsupport\tp-value\tcorrect\n')
+        f.write('barcode\tvar\tgeno\tsupport\tp-value\toppo_support\tcorrect\n')
         for barcode, allele_pairs in barcode_pair_map.items():
             for allele_pair, link_value in allele_pairs.items():
                 p_value = T.cdf((mean-link_value)/math.sqrt(var/10))
@@ -229,4 +248,4 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
                 is_correct = 0
                 if check_haplotype(gt_phasing_str, ''.join(map(lambda x:x.split(':')[1], allele_pair))):
                     is_correct = 1
-                f.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], allele_pair)), ''.join(map(lambda x:x.split(':')[1], allele_pair)),link_value, p_value, is_correct))
+                f.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], allele_pair)), ''.join(map(lambda x:x.split(':')[1], allele_pair)),link_value, p_value, barcode_pair_neg_map[barcode][allele_pair], is_correct))
