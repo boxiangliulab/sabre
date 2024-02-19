@@ -26,7 +26,7 @@ def main(opt):
 
     prettify_print_header(1, 'Loading and Preprocessing VCF File...', end='\r')
     processed_vcf_file = file_utils.load_vcf(opt)
-    variants, vid_var_map = file_utils.generate_variants(processed_vcf_file)
+    variants, vid_var_map = file_utils.generate_variants(opt, processed_vcf_file)
     bed_file = file_utils.generate_bed_file(opt, variants)
     prettify_print_header(1, 'Loading and Preprocessing VCF File [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
@@ -96,6 +96,8 @@ if __name__ == '__main__':
     parser.add_argument("--barcode_path", help="Barcode whitelist file.", required = False, default=None)
     parser.add_argument("--sample_name", help="Sample name in VCF", required = False, default='')
     parser.add_argument("--restrict_chr", help="To restrict phasing in a given chr on BAM & VCF",default=None, type=str)
+    parser.add_argument("--raw_vcf", help="If the vcf is not filtered", default=False)
+    parser.add_argument("--vcf_qual", help="The quality threshold on QUAL during processing vcf files.", default=30, type=int)
     parser.add_argument("--restrict_chr_vcf", help="To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF",default=None, type=str)
     parser.add_argument("--black_list", help="A blacklist, not implemented yet",default=None, type=str)
     parser.add_argument("--mapq_threshold", help="A filter on bam file. Reads have mapq lower than this threshold will be omitted.",default=60, type=str)
@@ -107,7 +109,7 @@ if __name__ == '__main__':
     parser.add_argument("--edge_threshold", help="A filter on low confidence edges on graph", default=10, type=int)
     parser.add_argument("--verbose", help="Determine whether output conflicted graphs", action='store_true')
     parser.add_argument("--seed", help="Random seed", type=int, default=42)
-    parser.add_argument("--input_type", help="Decide the input type, e.g. cellranger, umitools", type=str, default='cellranger')
+    parser.add_argument("--input_type", help="Decide the input type, e.g. cellranger, umitools", type=str, default='cellranger', choices=['cellranger', 'umitools', 'star'])
     
 
     opt = parser.parse_args()

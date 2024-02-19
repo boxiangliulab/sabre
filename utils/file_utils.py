@@ -220,7 +220,7 @@ def load_vcf(opt):
     return processed_vcf_path
 
 
-def generate_variants(processed_vcf_path):
+def generate_variants(opt, processed_vcf_path):
     '''
     To generate wrapped variants from processed VCF file.
     Notablly, a typical VCF File header looks like:
@@ -240,9 +240,14 @@ def generate_variants(processed_vcf_path):
             col_chr, col_pos, col_id, col_ref, col_alt, col_qual, col_filter, col_info, col_format, col_sample = columns
 
             # Simple filtering by $FILTER$ == PASS
-            if 'PASS' not in col_filter:
-                filtered_record_num+=1
-                continue
+            if not opt.raw_vcf:
+                if 'PASS' not in col_filter:
+                    filtered_record_num+=1
+                    continue
+            else:
+                if float(col_qual.strip()) < opt.vcf_qual:
+                    filtered_record_num += 1
+                    continue
 
             # Try to get annotated genotype in VCF
             is_phased = False
@@ -346,6 +351,9 @@ def generate_reads(opt, output_sam_path):
         elif opt.input_type == 'umitools':
             # SRR8551677.318476227_CTAATGGAGACTAAGT_TCCAGACCGG
             _, barcode, umi = col_qname.split('_')
+        elif opt.input_type == 'star':
+            # AGATGTACTATCAGCAACATTGGC_GTGAGGACTT_AAAAAEEEEE_SRR6750053.36514992
+            barcode, umi = col_qname.split('_')[:2]
         umibarcode_line_map['.'.join([umi, barcode])].append(line)
         # umibarcode_line_map['.'.join([str(bamline_cnt),str(bamline_cnt)])].append(line)
         bamline_cnt += 1
