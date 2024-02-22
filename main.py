@@ -91,12 +91,12 @@ if __name__ == '__main__':
     # # Processing args
     parser = argparse.ArgumentParser()
 
+    parser.add_argument("--id", help="A unique run ID string (e.g. sample345)", required = True, default='scFaser_test_output')
     parser.add_argument("--bam_path", help="Indexed BAMs (comma separated) containing aligned reads", required = True, default='')
     parser.add_argument("--vcf_path", help="VCF for the sample, must be gzipped and tabix indexed.", required = True, default='')
-    parser.add_argument("--barcode_path", help="Barcode whitelist file.", required = False, default=None)
     parser.add_argument("--sample_name", help="Sample name in VCF", required = False, default='')
     parser.add_argument("--restrict_chr", help="To restrict phasing in a given chr on BAM & VCF",default=None, type=str)
-    parser.add_argument("--raw_vcf", help="If the vcf is not filtered", default=False)
+    parser.add_argument("--raw_vcf", help="If the vcf is not filtered", action='store_true')
     parser.add_argument("--vcf_qual", help="The quality threshold on QUAL during processing vcf files.", default=30, type=int)
     parser.add_argument("--restrict_chr_vcf", help="To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF",default=None, type=str)
     parser.add_argument("--black_list", help="A blacklist, not implemented yet",default=None, type=str)
