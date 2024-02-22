@@ -252,7 +252,6 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
     '''
     resolved_nodes = []
     removed_edges = []
-    residual_graph = []
     for sg in subgraphs:
 
         sg = nx.Graph(sg)
@@ -262,6 +261,7 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
             edges_to_remove = [(a,b) for a,b,attrs in sg.edges(data=True) if attrs['weight']<=cut_threshold]
             sg.remove_edges_from(edges_to_remove)
         
+        residual_graph = nx.Graph() 
         for components in nx.connected_components(sg):
             cleared_sg = sg.subgraph(components)
             if len(cleared_sg.nodes) <= 1:

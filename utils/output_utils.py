@@ -17,7 +17,7 @@ def get_opposite_allele(allele, is_opposite=True):
 def check_haplotype(ground_truth, predict):
     '''
     #1 
-    Input : 
+    Input:
         ground_truth: A0B0C0
         predict: A1B1C1
     Output:
@@ -100,10 +100,10 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
     final_graph = de_duplicate(nonconflicted_nodes + resolved_conflicted_nodes)
     final_haplotypes = list(nx.connected_components(final_graph))
 
-    if not os.path.exists('./output'):
-        os.mkdir('./output')
+    if not os.path.exists('./output/{}'.format(opt.id)):
+        os.mkdir('./output/{}'.format(opt.id))
 
-    with open('./output/chr_{}_haplotypes.tsv'.format(opt.restrict_chr), 'w') as f:
+    with open('./output/{}/chr_{}_haplotypes.tsv'.format(opt.id, opt.restrict_chr), 'w') as f:
         f.write('haplotype\tpredicted_phasing\tgt_phasing\tcorrection\n')
         for nodes in final_haplotypes:
             var_phasing_list = list(map(lambda x: x.split(':'), nodes))
@@ -235,9 +235,9 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
     df = n-1
     T = scipy.stats.t(df)
     all_pairs, selected_pairs = 0, 0
-    if not os.path.exists('./output/singular_cells'):
-        os.mkdir('./output/singular_cells')
-    with open('./output/singular_cells/singular_cell_linkage_{}.txt'.format(opt.restrict_chr), 'w') as f:
+    if not os.path.exists('./output/{}/singular_cells'.format(opt.id)):
+        os.mkdir('./output/{}/singular_cells'.format(opt.id))
+    with open('./output/{}/singular_cells/singular_cell_linkage_{}.txt'.format(opt.id, opt.restrict_chr), 'w') as f:
         f.write('barcode\tvar\tgeno\tsupport\tp-value\toppo_support\tcorrect\n')
         for barcode, allele_pairs in barcode_pair_map.items():
             for allele_pair, link_value in allele_pairs.items():
@@ -249,3 +249,4 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
                 if check_haplotype(gt_phasing_str, ''.join(map(lambda x:x.split(':')[1], allele_pair))):
                     is_correct = 1
                 f.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], allele_pair)), ''.join(map(lambda x:x.split(':')[1], allele_pair)),link_value, p_value, barcode_pair_neg_map[barcode][allele_pair], is_correct))
+
