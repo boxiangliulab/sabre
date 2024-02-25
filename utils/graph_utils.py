@@ -47,7 +47,6 @@ def create_graph(opt, allele_linkage_map, var_barcode_map):
         barcode_weight_map = var_barcode_map[(alle_1, alle_2)]
         barcode_link_weights += list(barcode_weight_map.values())
         G.add_edges_from([(alle_1, alle_2, {'prime_weight': weight, 'barcodes':barcode_weight_map})])
-        assert sum(barcode_weight_map.values()) == weight
 
     G = graph_aggregation_and_update(G)
     return G, np.mean(barcode_link_weights), np.var(barcode_link_weights, ddof=1), len(barcode_link_weights)

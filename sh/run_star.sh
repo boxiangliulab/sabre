@@ -1,0 +1,1 @@
+python main.py --id shushu --bam_path ./data/split_cell_Aligned_sorted.bam --vcf_path ./data/split_cell_mouse.vcf.gz --sample_name split_cell_Aligned_sorted.bam --restrict_chr mm10_1 --as_quality 0.05 --shortest_path --input_type star --edge_threshold 1 --mapq_threshold 60 --remove_node auto --raw_vcf --vcf_qual 15

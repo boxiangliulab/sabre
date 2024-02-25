@@ -1,0 +1,1 @@
+python main.py --id NA12878_UMITOOLS --bam_path ./data/SG_HEL_B001_L002_UMITOOLS.bam --vcf_path ./data/SG_HEL_B001_L002_UMITOOLS.phased.vcf.gz --barcode_path ./data/barcodes.tsv --sample_name SG_HEL_B001_L002_UMITOOLS --restrict_chr chr22 --as_quality 0.05 --shortest_path --input_type umitools --edge_threshold 1 --mapq_threshold 60 --remove_node auto

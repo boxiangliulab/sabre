@@ -17,7 +17,6 @@ def get_opposite_allele(allele, is_opposite=True):
 def check_haplotype(ground_truth, predict):
     '''
     #1 
-    Input:
         ground_truth: A0B0C0
         predict: A1B1C1
     Output:
@@ -190,6 +189,7 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
     '''
 
     barcode_pair_map = collections.defaultdict(dict)
+    barcode_pair_global_neg_map = collections.defaultdict(int)
     barcode_pair_neg_map = collections.defaultdict(dict)
     for sg in removed_sub_graphs:
         calculated_pairs = set()
@@ -230,7 +230,27 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
                     barcode_pair_map[barcode][(left_node, right_node)] = count
                 else:
                     barcode_pair_map[barcode][(left_node, right_node)] += count
-    
+
+            if (left_node, right_node) not in barcode_pair_global_neg_map.keys():
+                barcodes = set()
+                assert (left_node, right_node) in allele_linkage_graph.edges
+                if (left_node, right_node) in allele_linkage_graph.edges:
+                    barcode_weight_map = allele_linkage_graph.edges[(left_node, right_node)]['barcodes']
+                    for barcode in barcode_weight_map.keys():
+                        barcodes.add(barcode)
+                if (oppo_left_node, right_node) in allele_linkage_graph.edges:
+                    barcode_weight_map = allele_linkage_graph.edges[(oppo_left_node, right_node)]['barcodes']
+                    for barcode in barcode_weight_map.keys():
+                        barcodes.add(barcode)
+                if (left_node, oppo_right_node) in allele_linkage_graph.edges:
+                    barcode_weight_map = allele_linkage_graph.edges[(left_node, oppo_right_node)]['barcodes']
+                    for barcode in barcode_weight_map.keys():
+                        barcodes.add(barcode)
+                if (oppo_left_node, oppo_right_node) in allele_linkage_graph.edges:
+                    barcode_weight_map = allele_linkage_graph.edges[(oppo_left_node, oppo_right_node)]['barcodes']
+                    for barcode in barcode_weight_map.keys():
+                        barcodes.add(barcode)
+                barcode_pair_global_neg_map[(left_node, right_node)] = len(barcodes)
     # output
     df = n-1
     T = scipy.stats.t(df)
@@ -238,15 +258,15 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
     if not os.path.exists('./output/{}/singular_cells'.format(opt.id)):
         os.mkdir('./output/{}/singular_cells'.format(opt.id))
     with open('./output/{}/singular_cells/singular_cell_linkage_{}.txt'.format(opt.id, opt.restrict_chr), 'w') as f:
-        f.write('barcode\tvar\tgeno\tsupport\tp-value\toppo_support\tcorrect\n')
+        f.write('barcode\tvar\tgeno\tsupport\tp-value\toppo_support\tglobal_oppo_support\tcorrect\n')
         for barcode, allele_pairs in barcode_pair_map.items():
             for allele_pair, link_value in allele_pairs.items():
                 p_value = T.cdf((mean-link_value)/math.sqrt(var/10))
                 if p_value > 0.05:
-                    continue
+                    pass #continue
                 gt_phasing_str = ''.join(list(map(lambda x: vid_var_map[x].genotype_string.split('|')[0] if vid_var_map[x].is_phased else '-', map(lambda x:x.split(':')[0], allele_pair))))
                 is_correct = 0
                 if check_haplotype(gt_phasing_str, ''.join(map(lambda x:x.split(':')[1], allele_pair))):
                     is_correct = 1
-                f.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], allele_pair)), ''.join(map(lambda x:x.split(':')[1], allele_pair)),link_value, p_value, barcode_pair_neg_map[barcode][allele_pair], is_correct))
+                f.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], allele_pair)), ''.join(map(lambda x:x.split(':')[1], allele_pair)),link_value, p_value, barcode_pair_neg_map[barcode][allele_pair], barcode_pair_global_neg_map[allele_pair], is_correct))
 

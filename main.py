@@ -17,7 +17,7 @@ def main(opt):
     print('''[purple]
         +---------------------------------------+
         |                                       |
-        |      [bold green]:dna:FASER for scRNA-Seq:dna:[/bold green] [italic purple]v2.0[/italic purple]     |
+        |      [bold green]:dna:FASER for scRNA-Seq:dna:[/bold green] [italic purple]v3.0[/italic purple]     |
         |                                       |
         +---------------------------------------+
         [/purple]''')
@@ -117,3 +117,4 @@ if __name__ == '__main__':
     opt.restrict_chr_vcf = opt.restrict_chr if opt.restrict_chr_vcf is None else opt.restrict_chr_vcf
     
     main(opt)
+

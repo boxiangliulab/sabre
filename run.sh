@@ -1,1 +1,0 @@
-python main.py --bam_path ./data/Aligned.sortedByCoord.out.bam --vcf_path ./data/NA12878.vcf.gz --barcode_path ./data/barcodes.tsv --sample_name NA12878 --restrict_chr chr1 --as_quality 0.05 --shortest_path --edge_threshold 5 --mapq_threshold 60 --remove_node auto
