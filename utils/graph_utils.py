@@ -22,6 +22,7 @@ def output_graph_weights(opt, G:nx.Graph, vid_var_map):
 
         G.nodes[node]['x'] = float(pos_x)
         G.nodes[node]['y'] = float(pos_y)
+    '''
     for a, b, data in G.edges.data():
         if node_pos_map[a][1] != node_pos_map[b][1]:
             G.edges[a,b]['right'] = 0
@@ -29,7 +30,7 @@ def output_graph_weights(opt, G:nx.Graph, vid_var_map):
             continue
         G.edges[a,b]['right'] = 1
         right_edge_weights.append(data['weight'])
-
+    '''
     nx.write_graphml(G, './output/original_graph_{}.graphml'.format(opt.restrict_chr))
     
     np.save('non-gcn-weight', nx.get_edge_attributes(G, 'weight'))
@@ -47,7 +48,6 @@ def create_graph(opt, allele_linkage_map, var_barcode_map):
         barcode_weight_map = var_barcode_map[(alle_1, alle_2)]
         barcode_link_weights += list(barcode_weight_map.values())
         G.add_edges_from([(alle_1, alle_2, {'prime_weight': weight, 'barcodes':barcode_weight_map})])
-
     G = graph_aggregation_and_update(G)
     return G, np.mean(barcode_link_weights), np.var(barcode_link_weights, ddof=1), len(barcode_link_weights)
 

@@ -4,6 +4,7 @@ import argparse
 from rich import print
 import random
 import numpy as np
+import resource
 
 def prettify_print_header(step, content, end=''):
     print('[bold green]----- Step {}:[/bold green] {}'.format(step, content), end=end)
@@ -25,7 +26,10 @@ def main(opt):
     print('[italic bold green]Running with Options:[/italic bold green]', vars(opt), '\n')
 
     prettify_print_header(1, 'Loading and Preprocessing VCF File...', end='\r')
-    processed_vcf_file = file_utils.load_vcf(opt)
+    if opt.var_format != 'npy':
+        processed_vcf_file = file_utils.load_vcf(opt)
+    else:
+        processed_vcf_file = None
     variants, vid_var_map = file_utils.generate_variants(opt, processed_vcf_file)
     bed_file = file_utils.generate_bed_file(opt, variants)
     prettify_print_header(1, 'Loading and Preprocessing VCF File [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
@@ -44,14 +48,14 @@ def main(opt):
     prettify_print_header(3, 'Mapping Variants to Reads [pink1 bold]COMPLETED![/pink1 bold]!', '\n\n')
 
     prettify_print_header(4, 'Mapping Alleles to Reads...', end='\r')
-    allele_linkage_map, edge_barcode_map = algo_utils.extract_allele_linkage(read_variants_map)
+    allele_linkage_map, edge_barcode_map = algo_utils.extract_allele_linkage(opt, read_variants_map)
     del(read_variants_map)
     prettify_print_header(4, 'Mapping Alleles to Reads [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(5, 'Creating the allele linkage graph...', end='\r')
     allele_linkage_graph, min_mean, min_var, min_n = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map)
     prettify_print_header(5, 'Creating the allele linkage graph [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
-
+    
     prettify_print_header(6, 'Finding connected components and save them...', end='\r')
     allele_subgraphs = graph_utils.find_connected_components(allele_linkage_graph)
     prettify_print_header(6, 'Finding connected components and save them [pink1 bold]COMPLETED![/pink1 bold]', end='\n\n')
@@ -69,16 +73,18 @@ def main(opt):
     prettify_print_header(9, 'Resolving conflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(10, 'Reporting phasing result...', end='\r')
-    total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map)
-    output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, mean=min_mean, var=min_var, n=min_n)
-    # output_utils.report_singular_cells(opt, removed_edges, allele_linkage_graph, mean=min_mean, var=min_var, n=min_n)
+    total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map)
+    #total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, [], vid_var_map)
+    if opt.singular:
+        output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, mean=min_mean, var=min_var, n=min_n)
     prettify_print_header(10, 'Reporting phasing result [pink1 bold]COMPLETED![/pink1 bold]', '\n')
     print("Phasing on chromosome {} [pink1 bold]COMPLETED![/pink1 bold]".format(opt.restrict_chr))
-    print("[green bold]Phased Vars:\t[/green bold] {} variants in total.".format(total_nodes))
-    print("[green bold]Overall:\t[/green bold] {} haplotypes in total, {} haplotypes are in coordinate with ground truth. The accuracy is {:.4f}%".format(total_hap, correct_hap, correct_hap/total_hap * 100))
-    print("[green bold]Conflicted:\t[/green bold] {}  haplotypes in total, {}  haplotypes are in coordinate with ground truth. The accuracy is {:.4f}%".format(total_predict, correct_predict, 0 if total_predict == 0 else correct_predict/total_predict * 100))
-    print("[green bold]Nonconflicted:\t[/green bold] {} haplotypes in total, {} haplotypes are in coordinate with ground truth. The accuracy is {:.4f}%".format(total_hap-total_predict, correct_hap-correct_predict, (correct_hap-correct_predict)/(total_hap-total_predict) * 100))
-
+    print("[green bold]Phased Vars:\t[/green bold] {} variants in total.".format(total_nodes))    
+    print("[green bold]Overall:\t[/green bold] {} haplotypes in total, {} haplotypes are in coordinate with ground truth. Haplotype accuracy is {:.4f}%".format(total_hap, correct_hap, correct_hap/total_hap * 100))
+    print("[green bold]Pairwise Metric:\t[/green bold] {} pairs in total, {} pairs are in coordinate with ground truth. Pairwise accuracy is {:.4f}%".format(predict_pairs, correct_pairs, correct_pairs/predict_pairs* 100))
+    # print("[green bold]Conflicted:\t[/green bold] {}  haplotypes in total, {}  haplotypes are in coordinate with ground truth. The accuracy is {:.4f}%".format(total_predict, correct_predict, 0 if total_predict == 0 else correct_predict/total_predict * 100))
+    # print("[green bold]Nonconflicted:\t[/green bold] {} haplotypes in total, {} haplotypes are in coordinate with ground truth. The accuracy is {:.4f}%".format(total_hap-total_predict, correct_hap-correct_predict, (correct_hap-correct_predict)/(total_hap-total_predict) * 100))
+    print("Global maximum memory usage: [pink1 bold]{}[/pink1 bold]MB\nTime consumed: [pink1 bold]{}[/pink1 bold]s".format(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4), round((resource.getrusage(resource.RUSAGE_SELF).ru_utime + resource.getrusage(resource.RUSAGE_SELF).ru_stime), 4)))
     print('''[purple]
         +---------------------------------------+
         |                                       |
@@ -93,12 +99,18 @@ if __name__ == '__main__':
 
     parser.add_argument("--id", help="A unique run ID string (e.g. sample345)", required = True, default='scFaser_test_output')
     parser.add_argument("--bam_path", help="Indexed BAMs (comma separated) containing aligned reads", required = True, default='')
-    parser.add_argument("--vcf_path", help="VCF for the sample, must be gzipped and tabix indexed.", required = True, default='')
+    parser.add_argument("--vcf_path", help="VCF for the sample, must be gzipped and tabix indexed.", default='')
     parser.add_argument("--sample_name", help="Sample name in VCF", required = False, default='')
+    parser.add_argument("--npy_path", help="If var_format is set to npy, then this argument determines the path of npy file")
     parser.add_argument("--restrict_chr", help="To restrict phasing in a given chr on BAM & VCF",default=None, type=str)
     parser.add_argument("--raw_vcf", help="If the vcf is not filtered", action='store_true')
+<<<<<<< Updated upstream
+=======
+    parser.add_argument("--var_format", help="How variants are determined", default='vcf', choices=['vcf','npy'])
+>>>>>>> Stashed changes
     parser.add_argument("--vcf_qual", help="The quality threshold on QUAL during processing vcf files.", default=30, type=int)
     parser.add_argument("--restrict_chr_vcf", help="To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF",default=None, type=str)
+    parser.add_argument("--neglect_hla", help="Indicate whether neglect variants in HLA region",default=True)
     parser.add_argument("--black_list", help="A blacklist, not implemented yet",default=None, type=str)
     parser.add_argument("--mapq_threshold", help="A filter on bam file. Reads have mapq lower than this threshold will be omitted.",default=60, type=str)
     parser.add_argument("--fiedler_threshold", help="Nodes with corresponding value in fiedler vector lower than threshold will be removed",default=1e-2, type=float)
@@ -110,7 +122,7 @@ if __name__ == '__main__':
     parser.add_argument("--verbose", help="Determine whether output conflicted graphs", action='store_true')
     parser.add_argument("--seed", help="Random seed", type=int, default=42)
     parser.add_argument("--input_type", help="Decide the input type, e.g. cellranger, umitools", type=str, default='cellranger', choices=['cellranger', 'umitools', 'star'])
-    
+    parser.add_argument("--singular", help="Decide whether perform singular cell detection", type=bool, default=True) 
 
     opt = parser.parse_args()
     

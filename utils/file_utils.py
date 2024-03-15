@@ -233,6 +233,21 @@ def generate_variants(opt, processed_vcf_path):
     filtered_record_num = 0
 
     variants = []
+    if opt.var_format == 'npy':
+        vid_var_map = collections.OrderedDict()
+        var_ = np.load(opt.npy_path, allow_pickle=True).item()
+        for chr_ in var_.keys():
+            if opt.restrict_chr_vcf != chr_:
+                continue
+            for variant, geno in var_[chr_].items():
+                chr_, pos, rsid, ref, alt = variant.split('_')
+                total_record_num += 1
+                variants.append(Variant(opt.restrict_chr, pos, rsid, ref, alt, None, geno, True))
+        for var in variants:
+            vid_var_map[var.unique_id] = var
+        print('Received {} variants in total, {} variants taken, {} variants omitted.'.\
+                  format(total_record_num, total_record_num-filtered_record_num, filtered_record_num))
+        return variants, vid_var_map
     with open(processed_vcf_path, 'r') as vcf_file:
         for line in vcf_file:
             if line.strip('\n').startswith('#'):
@@ -261,7 +276,10 @@ def generate_variants(opt, processed_vcf_path):
             else:
                 filtered_record_num+=1
                 continue
-            
+            if opt.neglect_hla and opt.restrict_chr=='chr6':
+                if int(col_pos) >= 29602228 and int(col_pos) <= 33410226:
+                    filtered_record_num += 1
+                    continue
             # Try to get Genotype string in VCF, w.r.t. 1/0 or 0/1 or 1|0 or 0|1
             genotype_string = col_sample.split(':')[GT_index]
             if '.' in genotype_string:
@@ -358,6 +376,7 @@ def generate_reads(opt, output_sam_path):
             # AGATGTACTATCAGCAACATTGGC_GTGAGGACTT_AAAAAEEEEE_SRR6750053.36514992
             barcode, umi = col_qname.split('_')[:2]
         umibarcode_line_map['.'.join([umi, barcode])].append(line)
+        # barcode, umi = str(bamline_cnt), str(bamline_cnt)
         # umibarcode_line_map['.'.join([str(bamline_cnt),str(bamline_cnt)])].append(line)
         bamline_cnt += 1
         barcode_umi_cnt[barcode] += 1

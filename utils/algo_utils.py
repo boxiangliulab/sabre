@@ -50,7 +50,7 @@ def read_var_map(reads: list[Read], variants: list[Variant], vid_var_map):
 
     return read_variants_map
 
-def extract_allele_linkage(read_variants_map: dict):
+def extract_allele_linkage(opt, read_variants_map: dict):
     '''
     As we need to construct a allele graph, we need to figure out the mapping relationship between alleles and reads.
     For scRNA data, variants on reads with the same umi-barcode are actually on the same haplotype, thus shall be considered connected.
@@ -74,7 +74,10 @@ def extract_allele_linkage(read_variants_map: dict):
             allele_read_matchs += 1
             geno = var.get_geno_by_allele(allele[0])
             qname_alleles_map[read.umi_barcode].append(var.unique_id+':'+str(geno)+'*'+str(times))
-
+    # with open('bu_var_map_count.txt', 'a') as f:
+    #    for barcode, allele_list in qname_alleles_map.items():
+    #        f.write('{}\n'.format(len(allele_list)))
+    # exit(0)
     # there's two ways of implementation
     # first is just link the closest pair of alleles on reads
     # second is link a allele with all the alleles on a same read.
@@ -96,4 +99,6 @@ def extract_allele_linkage(read_variants_map: dict):
                 edge_barcode_map[(allele_1, allele_2)][barcode] += 1
     print('There are {} pseudo matches, among which {} are considered matched and {} are false matches, {} variants has at least 1 neighbors.'\
           .format(allele_read_matchs+false_read_matchs, allele_read_matchs, false_read_matchs, len(vars_)))
+    # with open('./metric/{}_neighbored_vars.txt'.format(opt.restrict_chr), 'w') as f:
+        # list(map(lambda x: f.write('{}\n'.format(x)), vars_))
     return allele_linkage_map, edge_barcode_map

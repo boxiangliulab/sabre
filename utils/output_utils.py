@@ -96,8 +96,14 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
     already_reported_set = []
     total_nodes = 0
 
+    predict_pairs = 0
+    correct_pairs = 0
+
     final_graph = de_duplicate(nonconflicted_nodes + resolved_conflicted_nodes)
     final_haplotypes = list(nx.connected_components(final_graph))
+
+    for sg in final_haplotypes:
+        draw_graph_with_weights('na12878_umi', final_graph.subgraph(sg))
 
     if not os.path.exists('./output/{}'.format(opt.id)):
         os.mkdir('./output/{}'.format(opt.id))
@@ -125,10 +131,21 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
 
             total_hap += 1
             correct_hap += is_correct
-
+            
+            predict_pairs += math.comb(len(predicted_phasing_str), 2)
+            if is_correct:
+                correct_pairs += math.comb(len(predicted_phasing_str), 2)
+            else:
+                cnt = 0
+                for al1, al2 in zip(gt_phasing_str, predicted_phasing_str):
+                    if al1 != al2:
+                        cnt += 1
+                correct_pairs += math.comb(len(predicted_phasing_str)-cnt, 2)
+                correct_pairs += math.comb(cnt, 2)
+            
             f.write('{}\t{}\t{}\t{}\n'.format(vids_string, predicted_phasing_str, gt_phasing_str, is_correct))
 
-    return total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph
+    return total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs
 
 
 
