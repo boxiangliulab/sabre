@@ -18,7 +18,7 @@ def main(opt):
     print('''[purple]
         +---------------------------------------+
         |                                       |
-        |      [bold green]:dna:FASER for scRNA-Seq:dna:[/bold green] [italic purple]v3.0[/italic purple]     |
+        |      [bold green]:dna:FASER for scRNA-Seq:dna:[/bold green] [italic purple]v2.0[/italic purple]     |
         |                                       |
         +---------------------------------------+
         [/purple]''')
@@ -104,10 +104,7 @@ if __name__ == '__main__':
     parser.add_argument("--npy_path", help="If var_format is set to npy, then this argument determines the path of npy file")
     parser.add_argument("--restrict_chr", help="To restrict phasing in a given chr on BAM & VCF",default=None, type=str)
     parser.add_argument("--raw_vcf", help="If the vcf is not filtered", action='store_true')
-<<<<<<< Updated upstream
-=======
     parser.add_argument("--var_format", help="How variants are determined", default='vcf', choices=['vcf','npy'])
->>>>>>> Stashed changes
     parser.add_argument("--vcf_qual", help="The quality threshold on QUAL during processing vcf files.", default=30, type=int)
     parser.add_argument("--restrict_chr_vcf", help="To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF",default=None, type=str)
     parser.add_argument("--neglect_hla", help="Indicate whether neglect variants in HLA region",default=True)
