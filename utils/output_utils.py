@@ -88,13 +88,13 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
     Report the phasing result of Faser.
     Nonconflicted nodes and predicted conflicted nodes are reported separately.
     '''
-    
+     
     total_hap = 0
     correct_hap = 0
     total_predict = 0
     correct_predict = 0
     already_reported_set = []
-    total_nodes = 0
+    total_var_set = set()
 
     predict_pairs = 0
     correct_pairs = 0
@@ -102,17 +102,15 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
     final_graph = de_duplicate(nonconflicted_nodes + resolved_conflicted_nodes)
     final_haplotypes = list(nx.connected_components(final_graph))
 
-    for sg in final_haplotypes:
-        draw_graph_with_weights('na12878_umi', final_graph.subgraph(sg))
-
     if not os.path.exists('./output/{}'.format(opt.id)):
         os.mkdir('./output/{}'.format(opt.id))
 
     with open('./output/{}/chr_{}_haplotypes.tsv'.format(opt.id, opt.restrict_chr), 'w') as f:
         f.write('haplotype\tpredicted_phasing\tgt_phasing\tcorrection\n')
         for nodes in final_haplotypes:
+            # var_phasing_list: [(chr1_147242777_._G_C, 1), ...]
             var_phasing_list = list(map(lambda x: x.split(':'), nodes))
-            total_nodes += len(var_phasing_list)
+            var_phasing_list = sorted(var_phasing_list, key=lambda x: int(x[0].split('_')[1]))
             vids, phasing = zip(*var_phasing_list)
             var_set = set(vids)
             if len(var_set) <= 1:
@@ -120,32 +118,51 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
             if var_set in already_reported_set:
                 continue
             already_reported_set.append(var_set)
-            vids_string = ','.join(vids)
-            predicted_phasing_str = ''.join(phasing)
 
-            #Get ground_truth phasing result
-            gt_phasing_str = ''.join(list(map(lambda x: vid_var_map[x].genotype_string.split('|')[0] if vid_var_map[x].is_phased else '-', vids)))
-            is_correct = 0
-            if check_haplotype(gt_phasing_str, predicted_phasing_str):
-                is_correct = 1
+            splited_haplotypes = [[var_phasing_list[0]]]
 
-            total_hap += 1
-            correct_hap += is_correct
-            
-            predict_pairs += math.comb(len(predicted_phasing_str), 2)
-            if is_correct:
-                correct_pairs += math.comb(len(predicted_phasing_str), 2)
-            else:
-                cnt = 0
-                for al1, al2 in zip(gt_phasing_str, predicted_phasing_str):
-                    if al1 != al2:
-                        cnt += 1
-                correct_pairs += math.comb(len(predicted_phasing_str)-cnt, 2)
-                correct_pairs += math.comb(cnt, 2)
-            
-            f.write('{}\t{}\t{}\t{}\n'.format(vids_string, predicted_phasing_str, gt_phasing_str, is_correct))
+            for pair in var_phasing_list[1:]:
+                pos_pre = int(splited_haplotypes[-1][-1][0].split('_')[1])
+                pos_now = int(pair[0].split('_')[1])
+                if pos_now - pos_pre >= 3000:
+                    splited_haplotypes.append([pair])
+                else:
+                    splited_haplotypes[-1].append(pair)
 
-    return total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs
+            for hap in splited_haplotypes:
+
+                if len(hap) <= 1: continue
+
+                vids, phasing = list(zip(*hap))
+
+                total_var_set = total_var_set | set(vids)
+                
+                vids_string = ','.join(vids)
+                predicted_phasing_str = ''.join(phasing)
+
+                #Get ground_truth phasing result
+                gt_phasing_str = ''.join(list(map(lambda x: vid_var_map[x].genotype_string.split('|')[0] if vid_var_map[x].is_phased else '-', vids)))
+                is_correct = 0
+                if check_haplotype(gt_phasing_str, predicted_phasing_str):
+                    is_correct = 1
+
+                total_hap += 1
+                correct_hap += is_correct
+
+                predict_pairs += math.comb(len(predicted_phasing_str), 2)
+                if is_correct:
+                    correct_pairs += math.comb(len(predicted_phasing_str), 2)
+                else:
+                    cnt = 0
+                    for al1, al2 in zip(gt_phasing_str, predicted_phasing_str):
+                        if al1 != al2:
+                            cnt += 1
+                    correct_pairs += math.comb(len(predicted_phasing_str)-cnt, 2)
+                    correct_pairs += math.comb(cnt, 2)
+
+                f.write('{}\t{}\t{}\t{}\n'.format(vids_string, predicted_phasing_str, gt_phasing_str, is_correct))
+
+    return total_hap, correct_hap, total_predict, correct_predict, len(total_var_set), final_graph, predict_pairs, correct_pairs
 
 
 
@@ -286,4 +303,5 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
                 if check_haplotype(gt_phasing_str, ''.join(map(lambda x:x.split(':')[1], allele_pair))):
                     is_correct = 1
                 f.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], allele_pair)), ''.join(map(lambda x:x.split(':')[1], allele_pair)),link_value, p_value, barcode_pair_neg_map[barcode][allele_pair], barcode_pair_global_neg_map[allele_pair], is_correct))
+
 

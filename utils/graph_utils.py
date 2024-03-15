@@ -37,7 +37,7 @@ def output_graph_weights(opt, G:nx.Graph, vid_var_map):
     np.save('right_edge_weights', right_edge_weights)
     np.save('wrong_edge_weights', wrong_edge_weights)
 
-def create_graph(opt, allele_linkage_map, var_barcode_map):
+def create_graph(opt, allele_linkage_map, var_barcode_map, vid_var_map):
     '''
     Use allele linkage to create allele linkage graph.
     Notablly, in comparison with phaser, informations of linkage by read are completely reserved.
@@ -65,9 +65,19 @@ def find_connected_components(G:nx.Graph):
     Find connected components in allele linkage graph.
     '''
     subgraphs = []
+    
+    temp_G = nx.Graph()
+    total_possible_pairs = 0
+
+    for left_node, right_node in G.edges:
+        temp_G.add_edge(left_node.split(':')[0], right_node.split(':')[0])
+    for component in nx.connected_components(temp_G):
+        total_possible_pairs += math.comb(len(component), 2)
+
     for component in nx.connected_components(G):
         subgraphs.append(G.subgraph(component))
-    return subgraphs
+        total_possible_pairs += math.comb(len(component), 2)
+    return subgraphs, total_possible_pairs
 
 def find_conflict_graphs(opt, subgraphs:list[nx.Graph], vid_var_map):
     '''

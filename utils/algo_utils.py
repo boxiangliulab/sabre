@@ -101,4 +101,4 @@ def extract_allele_linkage(opt, read_variants_map: dict):
           .format(allele_read_matchs+false_read_matchs, allele_read_matchs, false_read_matchs, len(vars_)))
     # with open('./metric/{}_neighbored_vars.txt'.format(opt.restrict_chr), 'w') as f:
         # list(map(lambda x: f.write('{}\n'.format(x)), vars_))
-    return allele_linkage_map, edge_barcode_map
+    return allele_linkage_map, edge_barcode_map, len(vars_)

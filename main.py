@@ -48,16 +48,16 @@ def main(opt):
     prettify_print_header(3, 'Mapping Variants to Reads [pink1 bold]COMPLETED![/pink1 bold]!', '\n\n')
 
     prettify_print_header(4, 'Mapping Alleles to Reads...', end='\r')
-    allele_linkage_map, edge_barcode_map = algo_utils.extract_allele_linkage(opt, read_variants_map)
+    allele_linkage_map, edge_barcode_map, phasable_variants = algo_utils.extract_allele_linkage(opt, read_variants_map)
     del(read_variants_map)
     prettify_print_header(4, 'Mapping Alleles to Reads [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(5, 'Creating the allele linkage graph...', end='\r')
-    allele_linkage_graph, min_mean, min_var, min_n = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map)
+    allele_linkage_graph, min_mean, min_var, min_n = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map, vid_var_map)
     prettify_print_header(5, 'Creating the allele linkage graph [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
     
     prettify_print_header(6, 'Finding connected components and save them...', end='\r')
-    allele_subgraphs = graph_utils.find_connected_components(allele_linkage_graph)
+    allele_subgraphs, total_possible_pairs = graph_utils.find_connected_components(allele_linkage_graph)
     prettify_print_header(6, 'Finding connected components and save them [pink1 bold]COMPLETED![/pink1 bold]', end='\n\n')
 
     prettify_print_header(7, 'Finding conflicted subgraphs...', end='\r')
@@ -80,10 +80,8 @@ def main(opt):
     prettify_print_header(10, 'Reporting phasing result [pink1 bold]COMPLETED![/pink1 bold]', '\n')
     print("Phasing on chromosome {} [pink1 bold]COMPLETED![/pink1 bold]".format(opt.restrict_chr))
     print("[green bold]Phased Vars:\t[/green bold] {} variants in total.".format(total_nodes))    
-    print("[green bold]Overall:\t[/green bold] {} haplotypes in total, {} haplotypes are in coordinate with ground truth. Haplotype accuracy is {:.4f}%".format(total_hap, correct_hap, correct_hap/total_hap * 100))
-    print("[green bold]Pairwise Metric:\t[/green bold] {} pairs in total, {} pairs are in coordinate with ground truth. Pairwise accuracy is {:.4f}%".format(predict_pairs, correct_pairs, correct_pairs/predict_pairs* 100))
-    # print("[green bold]Conflicted:\t[/green bold] {}  haplotypes in total, {}  haplotypes are in coordinate with ground truth. The accuracy is {:.4f}%".format(total_predict, correct_predict, 0 if total_predict == 0 else correct_predict/total_predict * 100))
-    # print("[green bold]Nonconflicted:\t[/green bold] {} haplotypes in total, {} haplotypes are in coordinate with ground truth. The accuracy is {:.4f}%".format(total_hap-total_predict, correct_hap-correct_predict, (correct_hap-correct_predict)/(total_hap-total_predict) * 100))
+    print("[green bold]Overall:\t[/green bold] {} haplotypes in total, {} haplotypes are in coordinate with ground truth with {} total phasable variants. Haplotype accuracy is {:.4f}%. Variants Recall is {:.4f}%. Average haplotype length is {:.4f}.".format(total_hap, correct_hap,phasable_variants, correct_hap/total_hap * 100, total_nodes/phasable_variants *100, total_nodes/total_hap))
+    print("[green bold]Pairwise Metric:\t[/green bold] {} pairs in total, {} pairs are in coordinate with ground truth, {} total possible pairs. Pairwise accuracy is {:.4f}%. Pairwise recall is {:.4f}%".format(predict_pairs, correct_pairs, total_possible_pairs, correct_pairs/predict_pairs* 100, predict_pairs/total_possible_pairs * 100))
     print("Global maximum memory usage: [pink1 bold]{}[/pink1 bold]MB\nTime consumed: [pink1 bold]{}[/pink1 bold]s".format(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4), round((resource.getrusage(resource.RUSAGE_SELF).ru_utime + resource.getrusage(resource.RUSAGE_SELF).ru_stime), 4)))
     print('''[purple]
         +---------------------------------------+
