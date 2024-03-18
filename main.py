@@ -18,7 +18,7 @@ def main(opt):
     print('''[purple]
         +---------------------------------------+
         |                                       |
-        |      [bold green]:dna:FASER for scRNA-Seq:dna:[/bold green] [italic purple]v2.0[/italic purple]     |
+        |      [bold green]:dna:FASER for scRNA-Seq:dna:[/bold green] [italic purple]v3.0[/italic purple]     |
         |                                       |
         +---------------------------------------+
         [/purple]''')
@@ -31,6 +31,7 @@ def main(opt):
     else:
         processed_vcf_file = None
     variants, vid_var_map = file_utils.generate_variants(opt, processed_vcf_file)
+    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
     bed_file = file_utils.generate_bed_file(opt, variants)
     prettify_print_header(1, 'Loading and Preprocessing VCF File [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
@@ -38,46 +39,45 @@ def main(opt):
     output_sam_path = file_utils.load_bam(opt, bed_file)
     reads = file_utils.generate_reads(opt, output_sam_path)
     prettify_print_header(2, 'BAM loading and preprocessing [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
-
+    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
     # As long as we limit the max length of alternative base pairs into 1.
     # We only need to calculate whether the $end$ of an variant lies between a read.
-    prettify_print_header(3, 'Mapping Variants to Reads...', end='\r')
-    read_variants_map = algo_utils.read_var_map(reads, variants, vid_var_map)
-    del(reads)
-    del(variants)
-    prettify_print_header(3, 'Mapping Variants to Reads [pink1 bold]COMPLETED![/pink1 bold]!', '\n\n')
+    prettify_print_header(3, 'Mapping Alleles to Reads...', end='\r')
+    allele_linkage_map, edge_barcode_map, phasable_variants = algo_utils.read_var_map(reads, variants)
+    prettify_print_header(3, 'Mapping Alleles to Reads [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
+    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
 
-    prettify_print_header(4, 'Mapping Alleles to Reads...', end='\r')
-    allele_linkage_map, edge_barcode_map, phasable_variants = algo_utils.extract_allele_linkage(opt, read_variants_map)
-    del(read_variants_map)
-    prettify_print_header(4, 'Mapping Alleles to Reads [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
-
-    prettify_print_header(5, 'Creating the allele linkage graph...', end='\r')
+    prettify_print_header(4, 'Creating the allele linkage graph...', end='\r')
     allele_linkage_graph, min_mean, min_var, min_n = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map, vid_var_map)
-    prettify_print_header(5, 'Creating the allele linkage graph [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
-    
-    prettify_print_header(6, 'Finding connected components and save them...', end='\r')
+    prettify_print_header(4, 'Creating the allele linkage graph [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
+    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
+
+    prettify_print_header(5, 'Finding connected components and save them...', end='\r')
     allele_subgraphs, total_possible_pairs = graph_utils.find_connected_components(allele_linkage_graph)
-    prettify_print_header(6, 'Finding connected components and save them [pink1 bold]COMPLETED![/pink1 bold]', end='\n\n')
+    prettify_print_header(5, 'Finding connected components and save them [pink1 bold]COMPLETED![/pink1 bold]', end='\n\n')
+    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
 
-    prettify_print_header(7, 'Finding conflicted subgraphs...', end='\r')
+    prettify_print_header(6, 'Finding conflicted subgraphs...', end='\r')
     conflicted_graphs, nonconflicted_graphs = graph_utils.find_conflict_graphs(opt, allele_subgraphs, vid_var_map)
-    prettify_print_header(7, 'Finding conflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
+    prettify_print_header(6, 'Finding conflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
+    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
 
-    prettify_print_header(8, 'Reporting nonconflicted subgraphs...', end='\r')
+    prettify_print_header(7, 'Reporting nonconflicted subgraphs...', end='\r')
     nonconflicted_nodes, phased_vars = graph_utils.extract_nonconflicted_nodes(nonconflicted_graphs)
-    prettify_print_header(8, 'Reporting nonconflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
+    prettify_print_header(7, 'Reporting nonconflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
+    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
 
-    prettify_print_header(9, 'Resolving conflicted subgraphs...', end='\r')
+    prettify_print_header(8, 'Resolving conflicted subgraphs...', end='\r')
     resolved_conflicted_nodes, removed_edges = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, phased_vars)
-    prettify_print_header(9, 'Resolving conflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
+    prettify_print_header(8, 'Resolving conflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
+    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
 
-    prettify_print_header(10, 'Reporting phasing result...', end='\r')
+    prettify_print_header(9, 'Reporting phasing result...', end='\r')
     total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map)
     #total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, [], vid_var_map)
     if opt.singular:
         output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, mean=min_mean, var=min_var, n=min_n)
-    prettify_print_header(10, 'Reporting phasing result [pink1 bold]COMPLETED![/pink1 bold]', '\n')
+    prettify_print_header(9, 'Reporting phasing result [pink1 bold]COMPLETED![/pink1 bold]', '\n')
     print("Phasing on chromosome {} [pink1 bold]COMPLETED![/pink1 bold]".format(opt.restrict_chr))
     print("[green bold]Phased Vars:\t[/green bold] {} variants in total.".format(total_nodes))    
     print("[green bold]Overall:\t[/green bold] {} haplotypes in total, {} haplotypes are in coordinate with ground truth with {} total phasable variants. Haplotype accuracy is {:.4f}%. Variants Recall is {:.4f}%. Average haplotype length is {:.4f}.".format(total_hap, correct_hap,phasable_variants, correct_hap/total_hap * 100, total_nodes/phasable_variants *100, total_nodes/total_hap))

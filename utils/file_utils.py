@@ -7,165 +7,115 @@ import os
 from rich import print
 import collections
 import functools
+from memory_profiler import profile
+from collections import namedtuple
 
-class Variant:
-    def __init__(self, col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased) -> None:
-        
-        self.col_chr = col_chr
-        self.col_pos = col_pos
-        self.col_id = col_id
-        self.col_ref = col_ref
-        self.col_alt = col_alt
-        self.col_qual = col_qual
-        self.genotype_string = genotype_string
-        self.is_phased = is_phased
+QUAL_THRESHOLD = 0
+ALIGNMENT_FILTER = 0
 
-        self.start = int(self.col_pos)-1
-        self.end = int(self.col_pos)
+Variant = namedtuple('Variant', ["unique_id", "end", "genotype_string", "is_phased"])
 
-        self.unique_id = self.create_unique_id()
+def create_variant(col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased) -> None:
+    unique_id = '_'.join([col_chr, col_pos, col_id, col_ref, col_alt])
+    return Variant(unique_id=unique_id, end=int(col_pos), genotype_string=genotype_string, is_phased=is_phased)
 
-    def create_unique_id(self):
-        return '_'.join([self.col_chr, self.col_pos, self.col_id, self.col_ref, self.col_alt])
-    
-    def create_node(self):
-        return self.unique_id+':0', self.unique_id+':1'
-    
-    def get_geno_by_allele(self, allele):
-        if allele == self.col_ref:
-            return 0 
-        return 1
-    
-    def get_allele_by_geno(self, geno):
-        if int(geno) == 1:
-            return self.col_alt
-        return self.col_ref
+def get_geno_by_allele(variant, allele):
+    if allele == variant.unique_id.split('_')[-2]:
+        return 0 
+    return 1
 
-class Bamline:
-    def __init__(self,col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar,\
-                  col_rnext, col_pnext, col_tlen, col_seq, col_qual, alignment_score,\
-                      col_rx, col_qx, col_bx, col_bc, col_qt) -> None:
-        self.col_qname = col_qname
-        self.col_flag = col_flag
-        self.col_rname = col_rname
-        self.col_pos = col_pos
-        self.col_mapq = col_mapq
-        self.col_cigar = col_cigar
-        self.col_rnext = col_rnext
-        self.col_pnext = col_pnext
-        self.col_tlen = col_tlen
-        self.col_seq = col_seq
-        self.col_qual = col_qual
-        self.alignment_score = alignment_score
-        self.col_rx = col_rx
-        self.col_qx = col_qx
-        self.col_bx = col_bx
-        self.col_bc = col_bc
-        self.col_qt = col_qt
+Read = namedtuple('Read', ['umi_barcode', 'read_seqs', 'read_quals', 'read_spans'])
 
+def generate_read_from_bamline(umi_barcode:str, bamline_list:list) -> None:
 
-class Read:
+    global ALIGNMENT_FILTER
+    read_seqs = []
+    read_quals = []
+    read_spans = []
+    for bamline in bamline_list:
+        if int(bamline.alignment_score) <= ALIGNMENT_FILTER:
+            continue
+        temp_read_seq, temp_qual_seq, temp_read_span = adjust_read_seq(bamline)
+        read_seqs += temp_read_seq
+        read_quals += temp_qual_seq
+        read_spans += temp_read_span
+    return Read(umi_barcode=umi_barcode, read_seqs=tuple(read_seqs), read_quals=tuple(read_quals), read_spans=tuple(read_spans))
 
-    lengths = []
-    def __init__(self, umi_barcode:str, bamline_list:list[Bamline], alignment_filter, qual_threshold=10, neglect_overlap=True) -> None:
-        self.umi_barcode = umi_barcode
-        self.umi, self.barcode = self.umi_barcode.split('.')
-        self.bamline_list = bamline_list
-        self.qual_threshold = qual_threshold
-        self.alignment_filter = alignment_filter
-        Read.lengths.append(len(self.bamline_list))
-
-        self.extract_read_seq()
-
-    def extract_read_seq(self):
-        '''
-        Extract seq and span from each bamline by adjust_read_seq, extracted read_seqs, qual_seqs and covering_spans are stored.
-        '''
-        self.read_seqs = []
-        self.read_quals = []
-        self.read_spans = []
-        for bamline in self.bamline_list:
-            if int(bamline.alignment_score) <= self.alignment_filter:
-                continue
-            temp_read_seq, temp_qual_seq, temp_read_span = Read.adjust_read_seq(bamline)
-            self.read_seqs += temp_read_seq
-            self.read_quals += temp_qual_seq
-            self.read_spans += temp_read_span
-
-    def adjust_read_seq(line:Bamline):
-        '''
-        To align variants onto reads, we need to get the real coverage of the given read to the genome, by analyzing the CIGAR string.
-        For every bamline, or bamlines splited by $N$, we extract each corresponding read_seq, qual_seq and covering_span from it.
-        Thus, a single read may contain multiple read_seqs, qual_seqs and covering_spans, determined by the number bamlines sharing the same umi_barcode,
-        and the number of $N$s in CIGAR.
-        '''
-        adjusted_read_seq = []
-        adjusted_qual_seq = []
-        spans = []
-        current_cigar_number = 0
-        genome_pointer = int(line.col_pos)
-        seq_pointer = 0
-        for char in line.col_cigar:
-            if char in '0123456789':
-                current_cigar_number = current_cigar_number*10 + int(char)
-            else:
-                if char == 'S':
-                    # soft clipping
-                    # consumes query
-                    # just ignore the corresponding seq by incrementing the seq pointer.
-                    seq_pointer += current_cigar_number
-                elif char == 'M' or char == '=' or char == 'X':
-                    # match
-                    # consumes query and reference
-                    # put the corresponding seq to the adjusted_read_seq, and adjust read_pointer
-                    adjusted_read_seq.append(line.col_seq[seq_pointer:seq_pointer+current_cigar_number])
-                    adjusted_qual_seq.append(line.col_qual[seq_pointer:seq_pointer+current_cigar_number])
-                    # [a, b] closed intervals
-                    spans.append((genome_pointer, genome_pointer+current_cigar_number-1))
-                    seq_pointer += current_cigar_number
-                    genome_pointer += current_cigar_number
-                elif char == 'I':
-                    # insertion
-                    # consumes query
-                    # ignore the insertion by adding seq_pointer, the adjusted_read_seq will not be affected.
-                    seq_pointer += current_cigar_number
-                elif char == 'D' or char == 'N':
-                    # deletion or skipped region
-                    # consumes reference
-                    # ignore it and move the pointer of genome right.
-                    genome_pointer += current_cigar_number
-
-                # No operations on "H" nor "P", cuz neither "H" nor "P" consumes neither
-                current_cigar_number = 0
-        
-        return adjusted_read_seq, adjusted_qual_seq, spans
-    
-
-    def get_base_pair_by_var_pos(self, var_pos):
-        '''
-        Given a variant position on genome, return the corresponding base pair on the read.
-        '''
-        bp_qual_map = collections.defaultdict(list)
-        for read, quals, (left, right) in zip(self.read_seqs, self.read_quals, self.read_spans):
-            if var_pos <= right and var_pos >= left:
-                pos = var_pos - left
-                base_pair = read[pos]
-                qual = quals[pos]
-                bp_qual_map[base_pair].append(qual)
-
-        if len(bp_qual_map) == 1:
-            return [list(bp_qual_map.keys())[0] for i in range(len(list(bp_qual_map.values())[0]))] if ord(max(list(bp_qual_map.values()))[0]) - 33 >= self.qual_threshold else None
+def adjust_read_seq(line):
+    '''
+    To align variants onto reads, we need to get the real coverage of the given read to the genome, by analyzing the CIGAR string.
+    For every bamline, or bamlines splited by $N$, we extract each corresponding read_seq, qual_seq and covering_span from it.
+    Thus, a single read may contain multiple read_seqs, qual_seqs and covering_spans, determined by the number bamlines sharing the same umi_barcode,
+    and the number of $N$s in CIGAR.
+    '''
+    adjusted_read_seq = []
+    adjusted_qual_seq = []
+    spans = []
+    current_cigar_number = 0
+    genome_pointer = int(line.col_pos)
+    seq_pointer = 0
+    for char in line.col_cigar:
+        if char in '0123456789':
+            current_cigar_number = current_cigar_number*10 + int(char)
         else:
-            # pros = functools.reduce(lambda a,b: a*b,list(map(lambda x: 10 ** (-(ord(x)-33)/10),list(bp_qual_map.values())[0])))
-            # cons = functools.reduce(lambda a,b: a*b,list(map(lambda x: 10 ** (-(ord(x)-33)/10),list(bp_qual_map.values())[1])))
-            # leading_bp = [list(bp_qual_map.keys())[0] for i in range(len(list(bp_qual_map.values())[0]))] if pros < cons else [list(bp_qual_map.keys())[1] for i in range(len(list(bp_qual_map.values())[1]))]
-            # print(pros, cons, min(pros, cons)/(pros + cons), str(bp_qual_map))
-            pros = sum(list(map(lambda x: -(ord(x)-33)/10, list(bp_qual_map.values())[0])))
-            cons = sum(list(map(lambda x: -(ord(x)-33)/10, list(bp_qual_map.values())[1])))
-            leading_bp = [list(bp_qual_map.keys())[0] for i in range(len(list(bp_qual_map.values())[0]))] if pros < cons else [list(bp_qual_map.keys())[1] for i in range(len(list(bp_qual_map.values())[1]))]
-            if 10 ** -abs(pros-cons) < 0.05:
-                return leading_bp
-        return None
+            if char == 'S':
+                # soft clipping
+                # consumes query
+                # just ignore the corresponding seq by incrementing the seq pointer.
+                seq_pointer += current_cigar_number
+            elif char == 'M' or char == '=' or char == 'X':
+                # match
+                # consumes query and reference
+                # put the corresponding seq to the adjusted_read_seq, and adjust read_pointer
+                adjusted_read_seq.append(line.col_seq[seq_pointer:seq_pointer+current_cigar_number])
+                adjusted_qual_seq.append(line.col_qual[seq_pointer:seq_pointer+current_cigar_number])
+                # [a, b] closed intervals
+                spans.append((genome_pointer, genome_pointer+current_cigar_number-1))
+                seq_pointer += current_cigar_number
+                genome_pointer += current_cigar_number
+            elif char == 'I':
+                # insertion
+                # consumes query
+                # ignore the insertion by adding seq_pointer, the adjusted_read_seq will not be affected.
+                seq_pointer += current_cigar_number
+            elif char == 'D' or char == 'N':
+                # deletion or skipped region
+                # consumes reference
+                # ignore it and move the pointer of genome right.
+                genome_pointer += current_cigar_number
+
+            # No operations on "H" nor "P", cuz neither "H" nor "P" consumes neither
+            current_cigar_number = 0
+    
+    return tuple(adjusted_read_seq), tuple(adjusted_qual_seq), tuple(spans)
+    
+
+def get_base_pair_by_var_pos(read, var_pos):
+    '''
+    Given a variant position on genome, return the corresponding base pair on the read.
+    '''
+    global QUAL_THRESHOLD
+    bp_qual_map = collections.defaultdict(list)
+    for read, quals, (left, right) in zip(read.read_seqs, read.read_quals, read.read_spans):
+        if var_pos <= right and var_pos >= left:
+            pos = var_pos - left
+            base_pair = read[pos]
+            qual = quals[pos]
+            bp_qual_map[base_pair].append(qual)
+
+    if len(bp_qual_map) == 1:
+        return [list(bp_qual_map.keys())[0] for i in range(len(list(bp_qual_map.values())[0]))] if ord(max(list(bp_qual_map.values()))[0]) - 33 >= QUAL_THRESHOLD else None
+    else:
+        # pros = functools.reduce(lambda a,b: a*b,list(map(lambda x: 10 ** (-(ord(x)-33)/10),list(bp_qual_map.values())[0])))
+        # cons = functools.reduce(lambda a,b: a*b,list(map(lambda x: 10 ** (-(ord(x)-33)/10),list(bp_qual_map.values())[1])))
+        # leading_bp = [list(bp_qual_map.keys())[0] for i in range(len(list(bp_qual_map.values())[0]))] if pros < cons else [list(bp_qual_map.keys())[1] for i in range(len(list(bp_qual_map.values())[1]))]
+        # print(pros, cons, min(pros, cons)/(pros + cons), str(bp_qual_map))
+        pros = sum(list(map(lambda x: -(ord(x)-33)/10, list(bp_qual_map.values())[0])))
+        cons = sum(list(map(lambda x: -(ord(x)-33)/10, list(bp_qual_map.values())[1])))
+        leading_bp = [list(bp_qual_map.keys())[0] for i in range(len(list(bp_qual_map.values())[0]))] if pros < cons else [list(bp_qual_map.keys())[1] for i in range(len(list(bp_qual_map.values())[1]))]
+        if 10 ** -abs(pros-cons) < 0.05:
+            return leading_bp
+    return None
 
 def load_barcode_list(opt):
     '''
@@ -221,7 +171,6 @@ def load_vcf(opt):
         raise RuntimeError("Bash returned a err {} when executing {}".format(err_code, command_line))
     
     return processed_vcf_path
-
 
 def generate_variants(opt, processed_vcf_path):
     '''
@@ -295,7 +244,7 @@ def generate_variants(opt, processed_vcf_path):
             # Restrict the length of alternative base pair into 1.
             all_alleles = col_alt.split(',') + [col_ref]
             if max([len(x) for x in all_alleles]) == 1:
-                variants.append(Variant(col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased))
+                variants.append(create_variant(col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased))
             else:
                 filtered_record_num += 1
                 continue
@@ -328,7 +277,6 @@ def load_bam(opt, bed_file):
 
     return output_sam_path
 
-
 def generate_reads(opt, output_sam_path):
     '''
     Generate reads from filtered SAM file from give BAM file.
@@ -336,66 +284,67 @@ def generate_reads(opt, output_sam_path):
     Bamlines with the same umi-barcode consists one Read.
     '''
     umibarcode_line_map = collections.defaultdict(list)
-    sam_file = open(output_sam_path, mode='r')
     alignment_scores = []
     bamline_cnt = 0
     barcode_umi_cnt = collections.defaultdict(int)
-    for line in sam_file.readlines():
-        columns = line.strip('\n').split('\t')
-        col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq, col_qual = \
-            columns[:11]
-        other_columns = columns[11:]
-        alignment_score = -100
-        col_rx, col_qx, col_umi, col_barcode, col_qt = None, None, None, None, None
-        for col in other_columns:
-            if col.startswith('AS'):
-                alignment_score = int(col.split(':')[-1])
-            elif col.startswith('RX'):
-                col_rx = col.split(':')[-1]
-            elif col.startswith('QX'):
-                col_qx = col.split(':')[-1]
-            # umi
-            elif col.startswith('UB'):
-                col_umi = col.split(':')[-1]
-            # barcode
-            elif col.startswith('CB'):
-                col_barcode = col.split(':')[-1]
-            elif col.startswith('QT'):
-                col_qt = col.split(':')[-1]
-        line = Bamline(col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq,\
-                     col_qual, alignment_score, col_rx, col_qx, col_umi, col_barcode, col_qt)
-        if opt.input_type == 'cellranger':
-            if col_umi is None or col_barcode is None :
-                continue
-            else:
-                barcode, umi = col_barcode, col_umi
-        elif opt.input_type == 'umitools':
-            # SRR8551677.318476227_CTAATGGAGACTAAGT_TCCAGACCGG
-            _, barcode, umi = col_qname.split('_')
-        elif opt.input_type == 'star':
-            # AGATGTACTATCAGCAACATTGGC_GTGAGGACTT_AAAAAEEEEE_SRR6750053.36514992
-            barcode, umi = col_qname.split('_')[:2]
-        umibarcode_line_map['.'.join([umi, barcode])].append(line)
-        # barcode, umi = str(bamline_cnt), str(bamline_cnt)
-        # umibarcode_line_map['.'.join([str(bamline_cnt),str(bamline_cnt)])].append(line)
-        bamline_cnt += 1
-        barcode_umi_cnt[barcode] += 1
-        alignment_scores.append(int(alignment_score))
+    global QUAL_THRESHOLD, ALIGNMENT_FILTER
+    QUAL_THRESHOLD = 10
+    Bamline = namedtuple('Bamline', ['col_pos', 'col_seq', 'col_qual', 'col_cigar', 'alignment_score'])
+    with open(output_sam_path) as sam_file:
+        for line in sam_file:
+            columns = line.strip('\n').split('\t')
+            col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq, col_qual = columns[:11]
+            other_columns = columns[11:]
+            alignment_score = -100
+            col_rx, col_qx, col_umi, col_barcode, col_qt = None, None, None, None, None
+            for col in other_columns:
+                if col.startswith('AS'):
+                    alignment_score = int(col.split(':')[-1])
+                elif col.startswith('RX'):
+                    col_rx = col.split(':')[-1]
+                elif col.startswith('QX'):
+                    col_qx = col.split(':')[-1]
+                # umi
+                elif col.startswith('UB'):
+                    col_umi = col.split(':')[-1]
+                # barcode
+                elif col.startswith('CB'):
+                    col_barcode = col.split(':')[-1]
+                elif col.startswith('QT'):
+                    col_qt = col.split(':')[-1]
+            #line = Bamline(col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq,\
+            #             col_qual, alignment_score, col_rx, col_qx, col_umi, col_barcode, col_qt)
+            line = Bamline(col_pos, col_seq, col_qual, col_cigar, alignment_score)
+            if opt.input_type == 'cellranger':
+                if col_umi is None or col_barcode is None:
+                    continue
+                else:
+                    barcode, umi = col_barcode, col_umi
+            elif opt.input_type == 'umitools':
+                # SRR8551677.318476227_CTAATGGAGACTAAGT_TCCAGACCGG
+                _, barcode, umi = col_qname.split('_')
+            elif opt.input_type == 'star':
+                # AGATGTACTATCAGCAACATTGGC_GTGAGGACTT_AAAAAEEEEE_SRR6750053.36514992
+                barcode, umi = col_qname.split('_')[:2]
+            umibarcode_line_map['.'.join([umi, barcode])].append(line)
+            # barcode, umi = str(bamline_cnt), str(bamline_cnt)
+            # umibarcode_line_map['.'.join([str(bamline_cnt),str(bamline_cnt)])].append(line)
+            bamline_cnt += 1
+            barcode_umi_cnt[barcode] += 1
+            alignment_scores.append(int(alignment_score))
     os.remove(output_sam_path)
     # print('Output SAM path:', output_sam_path)
     umi_cnt_threshold = 0
     filtered_barcode = set(filter(lambda x: barcode_umi_cnt[x]>umi_cnt_threshold, barcode_umi_cnt.keys()))
 
     # Filter these reads by alignment score
-    alignment_score_filter = np.percentile(alignment_scores, opt.as_quality*100)
+    ALIGNMENT_FILTER = np.percentile(alignment_scores, opt.as_quality*100)
     # alignment_score_filter = -99
-    reads = []
+
     for umi_barcode, lines in umibarcode_line_map.items():
         if umi_barcode.split('.')[-1] not in filtered_barcode:
             continue
-        read = Read(umi_barcode, lines, alignment_score_filter)
-        reads.append(read)
-    return reads
+        yield generate_read_from_bamline(umi_barcode=umi_barcode, bamline_list=lines)
 
 def generate_bed_file(opt, variants:list[Variant]):
     '''
@@ -403,8 +352,6 @@ def generate_bed_file(opt, variants:list[Variant]):
     '''
     bed_file = tempfile.NamedTemporaryFile(delete=False, mode='wt')
     for var in variants:
-        bed_file.write('{}\t{}\t{}\n'.format(var.col_chr, var.start, var.end))
+        bed_file.write('{}\t{}\t{}\n'.format(var.unique_id.split('_')[0], var.end-1, var.end))
     bed_file.close()
     return bed_file.name
-
-

@@ -13,3 +13,4 @@ output
 *.ipynb
 *.pkl
 *.txt
+*.bak

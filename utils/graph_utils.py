@@ -3,6 +3,7 @@ import collections
 import numpy as np
 import math
 import tqdm
+from memory_profiler import profile
 
 def output_graph_weights(opt, G:nx.Graph, vid_var_map):
 
