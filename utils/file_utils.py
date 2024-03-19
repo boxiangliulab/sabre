@@ -9,11 +9,14 @@ import collections
 import functools
 from memory_profiler import profile
 from collections import namedtuple
+import shelve
+import utils.algo_utils as algo_utils
 
 QUAL_THRESHOLD = 0
 ALIGNMENT_FILTER = 0
 
 Variant = namedtuple('Variant', ["unique_id", "end", "genotype_string", "is_phased"])
+Bamline = namedtuple('Bamline', ['col_pos', 'col_seq', 'col_qual', 'col_cigar', 'alignment_score'])
 
 def create_variant(col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased) -> None:
     unique_id = '_'.join([col_chr, col_pos, col_id, col_ref, col_alt])
@@ -54,6 +57,10 @@ def adjust_read_seq(line):
     current_cigar_number = 0
     genome_pointer = int(line.col_pos)
     seq_pointer = 0
+
+    col_qual = algo_utils.decompress_qual(line.col_qual)
+    col_seq = algo_utils.decompress_base(line.col_seq, len(col_qual))
+    
     for char in line.col_cigar:
         if char in '0123456789':
             current_cigar_number = current_cigar_number*10 + int(char)
@@ -67,8 +74,8 @@ def adjust_read_seq(line):
                 # match
                 # consumes query and reference
                 # put the corresponding seq to the adjusted_read_seq, and adjust read_pointer
-                adjusted_read_seq.append(line.col_seq[seq_pointer:seq_pointer+current_cigar_number])
-                adjusted_qual_seq.append(line.col_qual[seq_pointer:seq_pointer+current_cigar_number])
+                adjusted_read_seq.append(col_seq[seq_pointer:seq_pointer+current_cigar_number])
+                adjusted_qual_seq.append(col_qual[seq_pointer:seq_pointer+current_cigar_number])
                 # [a, b] closed intervals
                 spans.append((genome_pointer, genome_pointer+current_cigar_number-1))
                 seq_pointer += current_cigar_number
@@ -289,7 +296,7 @@ def generate_reads(opt, output_sam_path):
     barcode_umi_cnt = collections.defaultdict(int)
     global QUAL_THRESHOLD, ALIGNMENT_FILTER
     QUAL_THRESHOLD = 10
-    Bamline = namedtuple('Bamline', ['col_pos', 'col_seq', 'col_qual', 'col_cigar', 'alignment_score'])
+    umibarcode_line_map = collections.defaultdict(list)
     with open(output_sam_path) as sam_file:
         for line in sam_file:
             columns = line.strip('\n').split('\t')
@@ -314,7 +321,7 @@ def generate_reads(opt, output_sam_path):
                     col_qt = col.split(':')[-1]
             #line = Bamline(col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq,\
             #             col_qual, alignment_score, col_rx, col_qx, col_umi, col_barcode, col_qt)
-            line = Bamline(col_pos, col_seq, col_qual, col_cigar, alignment_score)
+            line = Bamline(col_pos, algo_utils.compress_base(col_seq), algo_utils.compress_qual(col_qual), col_cigar, alignment_score)
             if opt.input_type == 'cellranger':
                 if col_umi is None or col_barcode is None:
                     continue
@@ -332,19 +339,19 @@ def generate_reads(opt, output_sam_path):
             bamline_cnt += 1
             barcode_umi_cnt[barcode] += 1
             alignment_scores.append(int(alignment_score))
-    os.remove(output_sam_path)
-    # print('Output SAM path:', output_sam_path)
-    umi_cnt_threshold = 0
-    filtered_barcode = set(filter(lambda x: barcode_umi_cnt[x]>umi_cnt_threshold, barcode_umi_cnt.keys()))
+        sam_file.close()
+        os.remove(output_sam_path)
+        # print('Output SAM path:', output_sam_path)
+        umi_cnt_threshold = 0
+        filtered_barcode = set(filter(lambda x: barcode_umi_cnt[x]>umi_cnt_threshold, barcode_umi_cnt.keys()))
 
-    # Filter these reads by alignment score
-    ALIGNMENT_FILTER = np.percentile(alignment_scores, opt.as_quality*100)
-    # alignment_score_filter = -99
-
-    for umi_barcode, lines in umibarcode_line_map.items():
-        if umi_barcode.split('.')[-1] not in filtered_barcode:
-            continue
-        yield generate_read_from_bamline(umi_barcode=umi_barcode, bamline_list=lines)
+        # Filter these reads by alignment score
+        ALIGNMENT_FILTER = np.percentile(alignment_scores, opt.as_quality*100)
+        # alignment_score_filter = -99
+        for umi_barcode, lines in umibarcode_line_map.items():
+            if umi_barcode.split('.')[-1] not in filtered_barcode:
+                continue
+            yield generate_read_from_bamline(umi_barcode=umi_barcode, bamline_list=lines)
 
 def generate_bed_file(opt, variants:list[Variant]):
     '''
