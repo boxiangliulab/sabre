@@ -124,7 +124,7 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
             for pair in var_phasing_list[1:]:
                 pos_pre = int(splited_haplotypes[-1][-1][0].split('_')[1])
                 pos_now = int(pair[0].split('_')[1])
-                if pos_now - pos_pre >= 3000:
+                if pos_now - pos_pre >= opt.interval_threshold:
                     splited_haplotypes.append([pair])
                 else:
                     splited_haplotypes[-1].append(pair)

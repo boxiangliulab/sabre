@@ -31,7 +31,6 @@ def main(opt):
     else:
         processed_vcf_file = None
     variants, vid_var_map = file_utils.generate_variants(opt, processed_vcf_file)
-    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
     bed_file = file_utils.generate_bed_file(opt, variants)
     prettify_print_header(1, 'Loading and Preprocessing VCF File [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
@@ -39,42 +38,34 @@ def main(opt):
     output_sam_path = file_utils.load_bam(opt, bed_file)
     reads = file_utils.generate_reads(opt, output_sam_path)
     prettify_print_header(2, 'BAM loading and preprocessing [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
-    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
     # As long as we limit the max length of alternative base pairs into 1.
     # We only need to calculate whether the $end$ of an variant lies between a read.
     prettify_print_header(3, 'Mapping Alleles to Reads...', end='\r')
     allele_linkage_map, edge_barcode_map, phasable_variants = algo_utils.read_var_map(reads, variants)
     prettify_print_header(3, 'Mapping Alleles to Reads [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
-    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
 
     prettify_print_header(4, 'Creating the allele linkage graph...', end='\r')
     allele_linkage_graph, min_mean, min_var, min_n = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map, vid_var_map)
     prettify_print_header(4, 'Creating the allele linkage graph [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
-    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
 
     prettify_print_header(5, 'Finding connected components and save them...', end='\r')
     allele_subgraphs, total_possible_pairs = graph_utils.find_connected_components(allele_linkage_graph)
     prettify_print_header(5, 'Finding connected components and save them [pink1 bold]COMPLETED![/pink1 bold]', end='\n\n')
-    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
 
     prettify_print_header(6, 'Finding conflicted subgraphs...', end='\r')
     conflicted_graphs, nonconflicted_graphs = graph_utils.find_conflict_graphs(opt, allele_subgraphs, vid_var_map)
     prettify_print_header(6, 'Finding conflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
-    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
 
     prettify_print_header(7, 'Reporting nonconflicted subgraphs...', end='\r')
     nonconflicted_nodes, phased_vars = graph_utils.extract_nonconflicted_nodes(nonconflicted_graphs)
     prettify_print_header(7, 'Reporting nonconflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
-    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
 
     prettify_print_header(8, 'Resolving conflicted subgraphs...', end='\r')
     resolved_conflicted_nodes, removed_edges = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, phased_vars)
     prettify_print_header(8, 'Resolving conflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
-    print(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4))
 
     prettify_print_header(9, 'Reporting phasing result...', end='\r')
     total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map)
-    #total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, [], vid_var_map)
     if opt.singular:
         output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, mean=min_mean, var=min_var, n=min_n)
     prettify_print_header(9, 'Reporting phasing result [pink1 bold]COMPLETED![/pink1 bold]', '\n')
@@ -104,13 +95,15 @@ if __name__ == '__main__':
     parser.add_argument("--raw_vcf", help="If the vcf is not filtered", action='store_true')
     parser.add_argument("--var_format", help="How variants are determined", default='vcf', choices=['vcf','npy'])
     parser.add_argument("--vcf_qual", help="The quality threshold on QUAL during processing vcf files.", default=30, type=int)
+    parser.add_argument("--interval_threshold", help="Alleles with interval more than this threshold will be considered disconnected.", type=int, default=5000)
+    parser.add_argument("--memory_efficient", help="If set true, greatly reduce memory consume while extending runtime.", action='store_true')
     parser.add_argument("--restrict_chr_vcf", help="To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF",default=None, type=str)
     parser.add_argument("--neglect_hla", help="Indicate whether neglect variants in HLA region",default=True)
     parser.add_argument("--black_list", help="A blacklist, not implemented yet",default=None, type=str)
     parser.add_argument("--mapq_threshold", help="A filter on bam file. Reads have mapq lower than this threshold will be omitted.",default=60, type=str)
     parser.add_argument("--fiedler_threshold", help="Nodes with corresponding value in fiedler vector lower than threshold will be removed",default=1e-2, type=float)
     parser.add_argument("--remove_node", help="Remove no more than $remove_node$ in split_graph_by_common_shortest_path",default='auto', type=str)
-    parser.add_argument("--shortest_path", help="Decide whether activate split_graph_by_common_shortest_path.", action='store_true')
+    parser.add_argument("--shortest_path", help="Decide whether activate split_graph_by_common_shortest_path.", action='store_false')
     parser.add_argument("--as_quality", help="A filter on alignment score in BAM files", default=0.05, type=float)
     parser.add_argument("--neglect_overlap", help="Neglect overlap when deal with reads overlaps", action='store_true')
     parser.add_argument("--edge_threshold", help="A filter on low confidence edges on graph", default=10, type=int)

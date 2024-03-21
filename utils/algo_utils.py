@@ -8,13 +8,7 @@ import bidict
 BASE_TO_NUM = bidict.bidict([('A', '0'), ('T', '1'), ('C', '2'), ('G', '3')])
 
 def decimal_to_quaternary(n):
-    if n == 0:
-        return "0"
-    quaternary = []
-    while n:
-        n, remainder = divmod(n, 4)
-        quaternary.append(str(remainder))
-    return ''.join(reversed(quaternary))
+    return np.base_repr(n, base=4)
 
 def quaternary_to_decimal(q):
     return int(q, 4)
@@ -25,12 +19,11 @@ def compress_base(x):
     Example:
         Input: ATCG
         Corresponding Quadrature: (0123)4
-        Output: 27
+        Output: 25
     '''
     corresponding_nums = []
     for base in x:
-        if base == 'N':
-            base = 'A'
+        if base == 'N': base = 'A'
         corresponding_nums.append(BASE_TO_NUM[base])
     return quaternary_to_decimal(''.join(corresponding_nums))
 
@@ -82,7 +75,6 @@ def decompress_qual(s):
     is_counting = True
     current_count = ''
     while i >= 0:
-        print(i)
         current_chr = s[i]
         if is_counting:
             if str.isdigit(current_chr):

@@ -6,11 +6,8 @@ import subprocess
 import os
 from rich import print
 import collections
-import functools
-from memory_profiler import profile
 from collections import namedtuple
-import shelve
-import utils.algo_utils as algo_utils
+import importlib
 
 QUAL_THRESHOLD = 0
 ALIGNMENT_FILTER = 0
@@ -57,9 +54,6 @@ def adjust_read_seq(line):
     current_cigar_number = 0
     genome_pointer = int(line.col_pos)
     seq_pointer = 0
-
-    col_qual = algo_utils.decompress_qual(line.col_qual)
-    col_seq = algo_utils.decompress_base(line.col_seq, len(col_qual))
     
     for char in line.col_cigar:
         if char in '0123456789':
@@ -74,8 +68,8 @@ def adjust_read_seq(line):
                 # match
                 # consumes query and reference
                 # put the corresponding seq to the adjusted_read_seq, and adjust read_pointer
-                adjusted_read_seq.append(col_seq[seq_pointer:seq_pointer+current_cigar_number])
-                adjusted_qual_seq.append(col_qual[seq_pointer:seq_pointer+current_cigar_number])
+                adjusted_read_seq.append(line.col_seq[seq_pointer:seq_pointer+current_cigar_number])
+                adjusted_qual_seq.append(line.col_qual[seq_pointer:seq_pointer+current_cigar_number])
                 # [a, b] closed intervals
                 spans.append((genome_pointer, genome_pointer+current_cigar_number-1))
                 seq_pointer += current_cigar_number
@@ -296,7 +290,9 @@ def generate_reads(opt, output_sam_path):
     barcode_umi_cnt = collections.defaultdict(int)
     global QUAL_THRESHOLD, ALIGNMENT_FILTER
     QUAL_THRESHOLD = 10
-    umibarcode_line_map = collections.defaultdict(list)
+    if opt.memory_efficient:
+        import shelve
+        umibarcode_line_map = shelve.open('bamline', 'n')
     with open(output_sam_path) as sam_file:
         for line in sam_file:
             columns = line.strip('\n').split('\t')
@@ -319,9 +315,7 @@ def generate_reads(opt, output_sam_path):
                     col_barcode = col.split(':')[-1]
                 elif col.startswith('QT'):
                     col_qt = col.split(':')[-1]
-            #line = Bamline(col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq,\
-            #             col_qual, alignment_score, col_rx, col_qx, col_umi, col_barcode, col_qt)
-            line = Bamline(col_pos, algo_utils.compress_base(col_seq), algo_utils.compress_qual(col_qual), col_cigar, alignment_score)
+            line = Bamline(col_pos, col_seq, col_qual, col_cigar, alignment_score)
             if opt.input_type == 'cellranger':
                 if col_umi is None or col_barcode is None:
                     continue
@@ -333,13 +327,18 @@ def generate_reads(opt, output_sam_path):
             elif opt.input_type == 'star':
                 # AGATGTACTATCAGCAACATTGGC_GTGAGGACTT_AAAAAEEEEE_SRR6750053.36514992
                 barcode, umi = col_qname.split('_')[:2]
-            umibarcode_line_map['.'.join([umi, barcode])].append(line)
+            umi_barcode = '.'.join([umi, barcode])
+            if opt.memory_efficient:
+                if umi_barcode not in umibarcode_line_map.keys():
+                    umibarcode_line_map[umi_barcode] = []
+                umibarcode_line_map[umi_barcode] = umibarcode_line_map[umi_barcode] + [line]
+            else:
+                umibarcode_line_map[umi_barcode].append(line)
             # barcode, umi = str(bamline_cnt), str(bamline_cnt)
             # umibarcode_line_map['.'.join([str(bamline_cnt),str(bamline_cnt)])].append(line)
             bamline_cnt += 1
             barcode_umi_cnt[barcode] += 1
             alignment_scores.append(int(alignment_score))
-        sam_file.close()
         os.remove(output_sam_path)
         # print('Output SAM path:', output_sam_path)
         umi_cnt_threshold = 0
@@ -351,7 +350,10 @@ def generate_reads(opt, output_sam_path):
         for umi_barcode, lines in umibarcode_line_map.items():
             if umi_barcode.split('.')[-1] not in filtered_barcode:
                 continue
+            if opt.memory_efficient: lines = list(map(lambda x: Bamline(*x), lines))
             yield generate_read_from_bamline(umi_barcode=umi_barcode, bamline_list=lines)
+        
+        if opt.memory_efficient: umibarcode_line_map.close()
 
 def generate_bed_file(opt, variants:list[Variant]):
     '''
@@ -359,6 +361,6 @@ def generate_bed_file(opt, variants:list[Variant]):
     '''
     bed_file = tempfile.NamedTemporaryFile(delete=False, mode='wt')
     for var in variants:
-        bed_file.write('{}\t{}\t{}\n'.format(var.unique_id.split('_')[0], var.end-1, var.end))
+        bed_file.write('{}\t{}\t{}\n'.format('_'.join(var.unique_id.split('_')[:-4]), var.end-1, var.end))
     bed_file.close()
     return bed_file.name

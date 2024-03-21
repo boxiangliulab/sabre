@@ -46,11 +46,13 @@ def create_graph(opt, allele_linkage_map, var_barcode_map, vid_var_map):
     G = nx.Graph()
     barcode_link_weights = []
     for (alle_1, alle_2), weight in allele_linkage_map.items():
+        alle_1_pos, alle_2_pos = alle_1.split('_')[1], alle_2.split('_')[1]
+        if abs(int(alle_1_pos) - int(alle_2_pos)) > opt.interval_threshold: continue
         barcode_weight_map = var_barcode_map[(alle_1, alle_2)]
-        barcode_link_weights += list(barcode_weight_map.values())
+        barcode_link_weights += list(barcode_weight_map.values()) 
         G.add_edges_from([(alle_1, alle_2, {'prime_weight': weight, 'barcodes':barcode_weight_map})])
     G = graph_aggregation_and_update(G)
-    return G, np.mean(barcode_link_weights), np.var(barcode_link_weights, ddof=1), len(barcode_link_weights)
+    return G, np.mean(barcode_link_weights), np.var(barcode_link_weights, ddof=0), len(barcode_link_weights)
 
 def visualize_graph(G:nx.Graph, save_name):
     '''
@@ -202,8 +204,8 @@ def split_graph_by_fiedler_vector(sg:nx.Graph, graph_name='', threshold=1e-2):
 
     final_partitions = []
 
-    fiedler_vector = nx.fiedler_vector(sg)
-    partitions = ([],[])
+    fiedler_vector = nx.fiedler_vector(sg, tol=1e-4, normalized=True, seed=114514)
+    partitions = [[],[]]
     for i, node in enumerate(sg.nodes):
         if abs(fiedler_vector[i]) < threshold:
             continue
@@ -211,18 +213,26 @@ def split_graph_by_fiedler_vector(sg:nx.Graph, graph_name='', threshold=1e-2):
             partitions[0].append(node)
             continue
         partitions[1].append(node)
-    
+
+    partitions[0] = sorted(partitions[0])
+    partitions[1] = sorted(partitions[1])
+
+    if len(partitions[0]) > len(partitions[1]):
+        partitions[0], partitions[1] = partitions[1], partitions[0] 
     partition_results = []
     for i in nx.connected_components(sg.subgraph(partitions[0])):
-        partition_results.append(i)
+        partition_results.append(sorted(i))
     for i in nx.connected_components(sg.subgraph(partitions[1])):
-        partition_results.append(i)
+        partition_results.append(sorted(i))
+    
+    # For reproductibility
+    partition_results = sorted(partition_results, key=lambda x: x[0], reverse=True)
 
     for i in partition_results:
         if find_conflict_alleles(sg.subgraph(i)) == []:
             final_partitions.append(i)
         else:
-            final_partitions+=split_graph_by_fiedler_vector(sg.subgraph(i))
+            final_partitions+=split_graph_by_fiedler_vector(nx.Graph(sg.subgraph(i)))
     
     return final_partitions
 
