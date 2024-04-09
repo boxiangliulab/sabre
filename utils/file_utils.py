@@ -15,12 +15,12 @@ ALIGNMENT_FILTER = 0
 Variant = namedtuple('Variant', ["unique_id", "end", "genotype_string", "is_phased"])
 Bamline = namedtuple('Bamline', ['col_pos', 'col_seq', 'col_qual', 'col_cigar', 'alignment_score'])
 
-def create_variant(col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased) -> None:
-    unique_id = '_'.join([col_chr, col_pos, col_id, col_ref, col_alt])
+def create_variant(sep, col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased) -> None:
+    unique_id = sep.join([col_chr, col_pos, col_id, col_ref, col_alt])
     return Variant(unique_id=unique_id, end=int(col_pos), genotype_string=genotype_string, is_phased=is_phased)
 
-def get_geno_by_allele(variant, allele):
-    if allele == variant.unique_id.split('_')[-2]:
+def get_geno_by_allele(variant, allele, sep):
+    if allele == variant.unique_id.split(sep))[-2]:
         return 0 
     return 1
 
@@ -135,7 +135,7 @@ def load_vcf(opt):
     '''
     # First try to figure out which column the sample corresponds to in vcf file.
     # By literally get all the column names.
-    gzip_stream = gzip.open(opt.vcf_path, 'rt')
+    gzip_stream = gzip.open(opt.vcf, 'rt')
     vcf_column_index_map = collections.OrderedDict()
     for line in gzip_stream:
         if line.strip().startswith('#CHR'):
@@ -144,16 +144,16 @@ def load_vcf(opt):
             break
     gzip_stream.close()
 
-    if opt.sample_name not in vcf_column_index_map:
-        raise KeyError("sample_name {} not in vcf_column_index_map.keys(): {}".format(opt.sample_name, vcf_column_index_map.keys()))
+    if opt.sample not in vcf_column_index_map:
+        raise KeyError("sample {} not in vcf_column_index_map.keys(): {}".format(opt.sample, vcf_column_index_map.keys()))
 
 
     # To restrict read-backed phasing to a given chr.
     command_line = ''
-    if opt.restrict_chr is not None:
-        command_line = 'tabix -h ' + opt.vcf_path + ' ' + opt.restrict_chr_vcf + ':'
+    if opt.chr is not None:
+        command_line = 'tabix -h ' + opt.vcf + ' ' + opt.chr_vcf + ':'
     else:
-        command_line = 'gunzip -c ' + opt.vcf_path
+        command_line = 'gunzip -c ' + opt.vcf
     
     vcf_out = tempfile.NamedTemporaryFile(delete=False)
     vcf_out.close()
@@ -165,7 +165,7 @@ def load_vcf(opt):
     if opt.black_list is not None:
         pass
     else:
-        command_line += ' | cut -f 1-9,' + str(vcf_column_index_map[opt.sample_name]+1) + " | grep -v '0|0\|1|1' > " + processed_vcf_path
+        command_line += ' | cut -f 1-9,' + str(vcf_column_index_map[opt.sample]+1) + " | grep -v '0|0\|1|1' > " + processed_vcf_path
         err_code = subprocess.check_call("set -euo pipefail && "+command_line, shell=True, executable='/bin/bash')
 
     if err_code is None:
@@ -187,12 +187,12 @@ def generate_variants(opt, processed_vcf_path):
         vid_var_map = collections.OrderedDict()
         var_ = np.load(opt.npy_path, allow_pickle=True).item()
         for chr_ in var_.keys():
-            if opt.restrict_chr_vcf != chr_:
+            if opt.chr_vcf != chr_:
                 continue
             for variant, geno in var_[chr_].items():
-                chr_, pos, rsid, ref, alt = variant.split('_')
+                chr_, pos, rsid, ref, alt = variant.split(opt.sep)
                 total_record_num += 1
-                variants.append(Variant(opt.restrict_chr, pos, rsid, ref, alt, None, geno, True))
+                variants.append(Variant(opt.chr, pos, rsid, ref, alt, None, geno, True))
         for var in variants:
             vid_var_map[var.unique_id] = var
         print('Received {} variants in total, {} variants taken, {} variants omitted.'.\
@@ -226,7 +226,7 @@ def generate_variants(opt, processed_vcf_path):
             else:
                 filtered_record_num+=1
                 continue
-            if opt.neglect_hla and opt.restrict_chr=='chr6':
+            if opt.neglect_hla and opt.chr=='chr6':
                 if int(col_pos) >= 29602228 and int(col_pos) <= 33410226:
                     filtered_record_num += 1
                     continue
@@ -245,7 +245,7 @@ def generate_variants(opt, processed_vcf_path):
             # Restrict the length of alternative base pair into 1.
             all_alleles = col_alt.split(',') + [col_ref]
             if max([len(x) for x in all_alleles]) == 1:
-                variants.append(create_variant(col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased))
+                variants.append(create_variant(opt.sep, col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased))
             else:
                 filtered_record_num += 1
                 continue
@@ -270,7 +270,7 @@ def load_bam(opt, bed_file):
     output_sam_path = bam_out.name
 
     # We don't need headers...for now.
-    command = "samtools view {} '{}' -F 0x400 -q {} -L {} > {}".format(opt.bam_path, opt.restrict_chr, opt.mapq_threshold,\
+    command = "samtools view {} '{}' -F 0x400 -q {} -L {} > {}".format(opt.bam, opt.chr, opt.mapq_threshold,\
                                                                              bed_file, output_sam_path)
     err_code = subprocess.check_call("set -euo pipefail && "+command, shell=True, executable='/bin/bash')
 
@@ -327,6 +327,7 @@ def generate_reads(opt, output_sam_path):
             elif opt.input_type == 'star':
                 # AGATGTACTATCAGCAACATTGGC_GTGAGGACTT_AAAAAEEEEE_SRR6750053.36514992
                 barcode, umi = col_qname.split('_')[:2]
+            barcode, umi = str(bamline_cnt), str(bamline_cnt)
             umi_barcode = '.'.join([umi, barcode])
             if opt.memory_efficient:
                 if umi_barcode not in umibarcode_line_map.keys():
@@ -334,22 +335,15 @@ def generate_reads(opt, output_sam_path):
                 umibarcode_line_map[umi_barcode] = umibarcode_line_map[umi_barcode] + [line]
             else:
                 umibarcode_line_map[umi_barcode].append(line)
-            # barcode, umi = str(bamline_cnt), str(bamline_cnt)
-            # umibarcode_line_map['.'.join([str(bamline_cnt),str(bamline_cnt)])].append(line)
             bamline_cnt += 1
             barcode_umi_cnt[barcode] += 1
             alignment_scores.append(int(alignment_score))
         os.remove(output_sam_path)
-        # print('Output SAM path:', output_sam_path)
-        umi_cnt_threshold = 0
-        filtered_barcode = set(filter(lambda x: barcode_umi_cnt[x]>umi_cnt_threshold, barcode_umi_cnt.keys()))
 
         # Filter these reads by alignment score
         ALIGNMENT_FILTER = np.percentile(alignment_scores, opt.as_quality*100)
-        # alignment_score_filter = -99
+        alignment_score_filter = -99
         for umi_barcode, lines in umibarcode_line_map.items():
-            if umi_barcode.split('.')[-1] not in filtered_barcode:
-                continue
             if opt.memory_efficient: lines = list(map(lambda x: Bamline(*x), lines))
             yield generate_read_from_bamline(umi_barcode=umi_barcode, bamline_list=lines)
         
@@ -360,7 +354,8 @@ def generate_bed_file(opt, variants:list[Variant]):
     Generate BED file, which contains var, var_start, var_end
     '''
     bed_file = tempfile.NamedTemporaryFile(delete=False, mode='wt')
+    sep = opt.sep
     for var in variants:
-        bed_file.write('{}\t{}\t{}\n'.format('_'.join(var.unique_id.split('_')[:-4]), var.end-1, var.end))
+        bed_file.write('{}\t{}\t{}\n'.format(sep.join(var.unique_id.split(sep)[:-4]), var.end-1, var.end))
     bed_file.close()
     return bed_file.name

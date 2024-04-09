@@ -41,7 +41,7 @@ def main(opt):
     # As long as we limit the max length of alternative base pairs into 1.
     # We only need to calculate whether the $end$ of an variant lies between a read.
     prettify_print_header(3, 'Mapping Alleles to Reads...', end='\r')
-    allele_linkage_map, edge_barcode_map, phasable_variants = algo_utils.read_var_map(reads, variants)
+    allele_linkage_map, edge_barcode_map, phasable_variants = algo_utils.read_var_map(opt, reads, variants)
     prettify_print_header(3, 'Mapping Alleles to Reads [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     prettify_print_header(4, 'Creating the allele linkage graph...', end='\r')
@@ -69,7 +69,7 @@ def main(opt):
     if opt.singular:
         output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, mean=min_mean, var=min_var, n=min_n)
     prettify_print_header(9, 'Reporting phasing result [pink1 bold]COMPLETED![/pink1 bold]', '\n')
-    print("Phasing on chromosome {} [pink1 bold]COMPLETED![/pink1 bold]".format(opt.restrict_chr))
+    print("Phasing on chromosome {} [pink1 bold]COMPLETED![/pink1 bold]".format(opt.chr))
     print("[green bold]Phased Vars:\t[/green bold] {} variants in total.".format(total_nodes))    
     print("[green bold]Overall:\t[/green bold] {} haplotypes in total, {} haplotypes are in coordinate with ground truth with {} total phasable variants. Haplotype accuracy is {:.4f}%. Variants Recall is {:.4f}%. Average haplotype length is {:.4f}.".format(total_hap, correct_hap,phasable_variants, correct_hap/total_hap * 100, total_nodes/phasable_variants *100, total_nodes/total_hap))
     print("[green bold]Pairwise Metric:\t[/green bold] {} pairs in total, {} pairs are in coordinate with ground truth, {} total possible pairs. Pairwise accuracy is {:.4f}%. Pairwise recall is {:.4f}%".format(predict_pairs, correct_pairs, total_possible_pairs, correct_pairs/predict_pairs* 100, predict_pairs/total_possible_pairs * 100))
@@ -87,18 +87,19 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--id", help="A unique run ID string (e.g. sample345)", required = True, default='scFaser_test_output')
-    parser.add_argument("--bam_path", help="Indexed BAMs (comma separated) containing aligned reads", required = True, default='')
-    parser.add_argument("--vcf_path", help="VCF for the sample, must be gzipped and tabix indexed.", default='')
-    parser.add_argument("--sample_name", help="Sample name in VCF", required = False, default='')
+    parser.add_argument("--bam", help="Indexed BAMs (comma separated) containing aligned reads", required = True, default='')
+    parser.add_argument("--vcf", help="VCF for the sample, must be gzipped and tabix indexed.", default='')
+    parser.add_argument("--sample", help="Sample name in VCF", required = False, default='')
     parser.add_argument("--npy_path", help="If var_format is set to npy, then this argument determines the path of npy file")
-    parser.add_argument("--restrict_chr", help="To restrict phasing in a given chr on BAM & VCF",default=None, type=str)
+    parser.add_argument("--chr", help="To restrict phasing in a given chr on BAM & VCF",default=None, type=str)
     parser.add_argument("--raw_vcf", help="If the vcf is not filtered", action='store_true')
     parser.add_argument("--var_format", help="How variants are determined", default='vcf', choices=['vcf','npy'])
     parser.add_argument("--vcf_qual", help="The quality threshold on QUAL during processing vcf files.", default=30, type=int)
     parser.add_argument("--interval_threshold", help="Alleles with interval more than this threshold will be considered disconnected.", type=int, default=5000)
+    parser.add_argument("--sep", help="Character used to construct split variant information", type=str, default='_')
     parser.add_argument("--memory_efficient", help="If set true, greatly reduce memory consume while extending runtime.", action='store_true')
-    parser.add_argument("--restrict_chr_vcf", help="To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF",default=None, type=str)
-    parser.add_argument("--neglect_hla", help="Indicate whether neglect variants in HLA region",default=True)
+    parser.add_argument("--chr_vcf", help="To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF",default=None, type=str)
+    parser.add_argument("--neglect_hla", help="Indicate whether neglect variants in HLA region", action='store_true')
     parser.add_argument("--black_list", help="A blacklist, not implemented yet",default=None, type=str)
     parser.add_argument("--mapq_threshold", help="A filter on bam file. Reads have mapq lower than this threshold will be omitted.",default=60, type=str)
     parser.add_argument("--fiedler_threshold", help="Nodes with corresponding value in fiedler vector lower than threshold will be removed",default=1e-2, type=float)
@@ -114,7 +115,7 @@ if __name__ == '__main__':
 
     opt = parser.parse_args()
     
-    opt.restrict_chr_vcf = opt.restrict_chr if opt.restrict_chr_vcf is None else opt.restrict_chr_vcf
+    opt.chr_vcf = opt.chr if opt.chr_vcf is None else opt.chr_vcf
     
     main(opt)
 

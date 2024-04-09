@@ -118,7 +118,7 @@ def binary_search(pos:int, variants, right_bound=0):
             right = mid - 1
     return left
 
-def read_var_map(reads, variants):
+def read_var_map(opt, reads, variants):
     '''
     Map variants onto the reads.
     First all the variants are sorted by their positions (ascending order).
@@ -164,7 +164,7 @@ def read_var_map(reads, variants):
                 continue
             times = len(allele)
             allele_read_matchs += 1
-            geno = file_utils.get_geno_by_allele(var, allele[0])
+            geno = file_utils.get_geno_by_allele(var, allele[0], opt.sep)
             alleles.append(var.unique_id+':'+str(geno)+'*'+str(times))
         # there's two ways of implementation
         # first is just link the closest pair of alleles on reads

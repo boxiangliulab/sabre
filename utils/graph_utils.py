@@ -32,7 +32,7 @@ def output_graph_weights(opt, G:nx.Graph, vid_var_map):
         G.edges[a,b]['right'] = 1
         right_edge_weights.append(data['weight'])
     '''
-    nx.write_graphml(G, './output/original_graph_{}.graphml'.format(opt.restrict_chr))
+    nx.write_graphml(G, './output/original_graph_{}.graphml'.format(opt.chr))
     
     np.save('non-gcn-weight', nx.get_edge_attributes(G, 'weight'))
     np.save('right_edge_weights', right_edge_weights)
@@ -45,8 +45,9 @@ def create_graph(opt, allele_linkage_map, var_barcode_map, vid_var_map):
     '''
     G = nx.Graph()
     barcode_link_weights = []
+    sep = opt.sep
     for (alle_1, alle_2), weight in allele_linkage_map.items():
-        alle_1_pos, alle_2_pos = alle_1.split('_')[1], alle_2.split('_')[1]
+        alle_1_pos, alle_2_pos = alle_1.split(sep)[1], alle_2.split(sep)[1]
         if abs(int(alle_1_pos) - int(alle_2_pos)) > opt.interval_threshold: continue
         barcode_weight_map = var_barcode_map[(alle_1, alle_2)]
         barcode_link_weights += list(barcode_weight_map.values()) 
@@ -204,7 +205,7 @@ def split_graph_by_fiedler_vector(sg:nx.Graph, graph_name='', threshold=1e-2):
 
     final_partitions = []
 
-    fiedler_vector = nx.fiedler_vector(sg, tol=1e-4, normalized=True, seed=114514)
+    fiedler_vector = nx.fiedler_vector(sg, tol=1e-3, normalized=True, method='lanczos', seed=114514)
     partitions = [[],[]]
     for i, node in enumerate(sg.nodes):
         if abs(fiedler_vector[i]) < threshold:

@@ -4,6 +4,7 @@ import collections
 import scipy.stats
 import math
 import os
+from utils.graph_utils import find_conflict_alleles
 
 def get_opposite_allele(allele, is_opposite=True):
     '''
@@ -45,7 +46,7 @@ def check_haplotype(ground_truth, predict):
                 return False
     return True
 
-def de_duplicate(alleles_list:list[list[str]]):
+def de_duplicate(G:nx.Graph, alleles_list:list[list[str]], flag):
     '''
     As many of these haplotypes are actually not disjointed from each other, like
         1---2
@@ -55,19 +56,23 @@ def de_duplicate(alleles_list:list[list[str]]):
     Thus, we solve this problem by graph.
     '''
 
-    graph = nx.Graph()
     # alleles_list = sorted(map(sorted, alleles_list))
     for alleles in alleles_list:
         is_opposite = False
+        is_opposite_list = []
         for allele in alleles:
             opposite_allele = get_opposite_allele(allele)
-            if opposite_allele in graph.nodes:
-                is_opposite = True
-
+            if opposite_allele in G.nodes:
+                is_opposite_list.append(True)
+            elif allele in G.nodes:
+                is_opposite_list.append(False)
+        if not (all(is_opposite_list) or all(map(lambda x : not(x), is_opposite))):
+            continue
+        is_opposite = all(is_opposite_list)
         for i in range(len(alleles)-1):
-            graph.add_edge(get_opposite_allele(alleles[i], is_opposite), get_opposite_allele(alleles[i+1], is_opposite))
+            G.add_edge(get_opposite_allele(alleles[i], is_opposite), get_opposite_allele(alleles[i+1], is_opposite), flag=flag)
     
-    return graph
+    return G
 
 def draw_graph_with_weights(folder, G:nx.Graph):
     '''
@@ -99,18 +104,38 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
     predict_pairs = 0
     correct_pairs = 0
 
-    final_graph = de_duplicate(nonconflicted_nodes + resolved_conflicted_nodes)
+    final_graph = nx.Graph()
+    final_graph = de_duplicate(final_graph, nonconflicted_nodes, 'non')
+    final_graph = de_duplicate(final_graph, resolved_conflicted_nodes, 'con')
+
+    final_haplotypes = []
+    for component in nx.connected_components(final_graph):
+        cvs = find_conflict_alleles(final_graph.subgraph(component))
+        if cvs == []:
+            final_haplotypes.append(component)
+        else:
+            remove_edges = []
+            for node in component:
+                edges = final_graph.subgraph(component).edges(node)
+                edge_flag_list = [(edge, edge['flag']) for edge in edges]
+                if all(map(lambda x: x[1]=='con', edge_flag_list)) or all(map(lambda x: x[1]=='non', edge_flag_list)):
+                    remove_edges += list(filter(lambda x: x[1] == 'con'), edge_flag_list)
+                final_graph.remove_edges_from(remove_edges)
+                if find_conflict_alleles(final_graph.subgraph(component)) == []:
+                    final_haplotypes += nx.connected_components(final_graph.subgraph(component))
+                    break
+
     final_haplotypes = list(nx.connected_components(final_graph))
 
     if not os.path.exists('./output/{}'.format(opt.id)):
         os.mkdir('./output/{}'.format(opt.id))
 
-    with open('./output/{}/chr_{}_haplotypes.tsv'.format(opt.id, opt.restrict_chr), 'w') as f:
+    with open('./output/{}/chr_{}_haplotypes.tsv'.format(opt.id, opt.chr), 'w') as f:
         f.write('haplotype\tpredicted_phasing\tgt_phasing\tcorrection\n')
         for nodes in final_haplotypes:
             # var_phasing_list: [(chr1_147242777_._G_C, 1), ...]
             var_phasing_list = list(map(lambda x: x.split(':'), nodes))
-            var_phasing_list = sorted(var_phasing_list, key=lambda x: int(x[0].split('_')[1]))
+            var_phasing_list = sorted(var_phasing_list, key=lambda x: int(x[0].split(opt.sep)[1]))
             vids, phasing = zip(*var_phasing_list)
             var_set = set(vids)
             if len(var_set) <= 1:
@@ -122,8 +147,8 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
             splited_haplotypes = [[var_phasing_list[0]]]
 
             for pair in var_phasing_list[1:]:
-                pos_pre = int(splited_haplotypes[-1][-1][0].split('_')[1])
-                pos_now = int(pair[0].split('_')[1])
+                pos_pre = int(splited_haplotypes[-1][-1][0].split(opt.sep)[1])
+                pos_now = int(pair[0].split(opt.sep)[1])
                 if pos_now - pos_pre >= opt.interval_threshold:
                     splited_haplotypes.append([pair])
                 else:
@@ -179,7 +204,7 @@ def deprecated_report_singular_cells(opt, removed_edges:list[nx.Graph], final_gr
         for barcode, node_list in barcode_node_map.items():
             if len(node_list) == 1:
                 continue
-            node_list = sorted(node_list, key=lambda x: int(x[0].split('_')[1]))
+            node_list = sorted(node_list, key=lambda x: int(x[0].split(opt.sep)[1]))
             for i in range(0, len(node_list) - 1):
                 for j in range(i+1, len(node_list)):
                     (left_node, left_count), (right_node, right_count) = node_list[i], node_list[j]
@@ -291,7 +316,7 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
     all_pairs, selected_pairs = 0, 0
     if not os.path.exists('./output/{}/singular_cells'.format(opt.id)):
         os.mkdir('./output/{}/singular_cells'.format(opt.id))
-    with open('./output/{}/singular_cells/singular_cell_linkage_{}.txt'.format(opt.id, opt.restrict_chr), 'w') as f:
+    with open('./output/{}/singular_cells/singular_cell_linkage_{}.txt'.format(opt.id, opt.chr), 'w') as f:
         f.write('barcode\tvar\tgeno\tsupport\tp-value\toppo_support\tglobal_oppo_support\tcorrect\n')
         for barcode, allele_pairs in barcode_pair_map.items():
             for allele_pair, link_value in allele_pairs.items():
