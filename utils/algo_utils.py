@@ -193,3 +193,4 @@ def read_var_map(opt, reads, variants):
     
     return allele_linkage_map, edge_barcode_map, len(vars_)
 
+

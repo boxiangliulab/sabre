@@ -354,3 +354,4 @@ def graph_aggregation_and_update(G:nx.Graph):
     for n_a, n_b in G.edges:
         G.edges[n_a, n_b]['weight'] = round(G.edges[n_a, n_b]['prime_weight'] / max(G.nodes[n_a]['popularity'] / G.nodes[n_b]['popularity'], G.nodes[n_b]['popularity']/ G.nodes[n_a]['popularity']), 4)
     return G
+

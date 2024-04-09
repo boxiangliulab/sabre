@@ -86,7 +86,7 @@ if __name__ == '__main__':
     # # Processing args
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--id", help="A unique run ID string (e.g. sample345)", required = True, default='scFaser_test_output')
+    parser.add_argument("--id", help="A unique run ID string (e.g. sample345)", default='scFaser_test_output')
     parser.add_argument("--bam", help="Indexed BAMs (comma separated) containing aligned reads", required = True, default='')
     parser.add_argument("--vcf", help="VCF for the sample, must be gzipped and tabix indexed.", default='')
     parser.add_argument("--sample", help="Sample name in VCF", required = False, default='')
@@ -118,5 +118,6 @@ if __name__ == '__main__':
     opt.chr_vcf = opt.chr if opt.chr_vcf is None else opt.chr_vcf
     
     main(opt)
+
 
 

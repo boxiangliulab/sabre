@@ -66,7 +66,7 @@ def de_duplicate(G:nx.Graph, alleles_list:list[list[str]], flag):
                 is_opposite_list.append(True)
             elif allele in G.nodes:
                 is_opposite_list.append(False)
-        if not (all(is_opposite_list) or all(map(lambda x : not(x), is_opposite))):
+        if not (all(is_opposite_list) or all(map(lambda x : not(x), is_opposite_list))):
             continue
         is_opposite = all(is_opposite_list)
         for i in range(len(alleles)-1):
@@ -328,5 +328,6 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
                 if check_haplotype(gt_phasing_str, ''.join(map(lambda x:x.split(':')[1], allele_pair))):
                     is_correct = 1
                 f.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], allele_pair)), ''.join(map(lambda x:x.split(':')[1], allele_pair)),link_value, p_value, barcode_pair_neg_map[barcode][allele_pair], barcode_pair_global_neg_map[allele_pair], is_correct))
+
 
 

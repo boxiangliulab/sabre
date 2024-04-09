@@ -20,7 +20,7 @@ def create_variant(sep, col_chr, col_pos, col_id, col_ref, col_alt, col_qual, ge
     return Variant(unique_id=unique_id, end=int(col_pos), genotype_string=genotype_string, is_phased=is_phased)
 
 def get_geno_by_allele(variant, allele, sep):
-    if allele == variant.unique_id.split(sep))[-2]:
+    if allele == variant.unique_id.split(sep)[-2]:
         return 0 
     return 1
 
@@ -327,7 +327,7 @@ def generate_reads(opt, output_sam_path):
             elif opt.input_type == 'star':
                 # AGATGTACTATCAGCAACATTGGC_GTGAGGACTT_AAAAAEEEEE_SRR6750053.36514992
                 barcode, umi = col_qname.split('_')[:2]
-            barcode, umi = str(bamline_cnt), str(bamline_cnt)
+            # barcode, umi = str(bamline_cnt), str(bamline_cnt)
             umi_barcode = '.'.join([umi, barcode])
             if opt.memory_efficient:
                 if umi_barcode not in umibarcode_line_map.keys():
@@ -359,3 +359,4 @@ def generate_bed_file(opt, variants:list[Variant]):
         bed_file.write('{}\t{}\t{}\n'.format(sep.join(var.unique_id.split(sep)[:-4]), var.end-1, var.end))
     bed_file.close()
     return bed_file.name
+
