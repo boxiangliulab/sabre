@@ -27,5 +27,3 @@ for i in range(1, 23):
         result_df = pd.concat([result_df, agg_result], ignore_index=True)
 
 result_df.to_csv('./output/{}/singular_cells/result_singular_cells.csv'.format(ID),index=False)
-
-

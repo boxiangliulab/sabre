@@ -166,6 +166,11 @@ def split_graph_by_min_cut(sg: nx.Graph, graph_name=''):
     Recursively cut the graph by min-cut/max-flow algorithm till there is no conflict allele inside.
     '''
 
+    if len(sg.nodes) <= 1:
+        return []
+
+    if find_conflict_alleles(sg) == []:
+        return nx.connected_components(sg)
     final_partitions = []
 
     conflict_variants = find_conflict_alleles(sg)
@@ -192,7 +197,7 @@ def split_graph_by_min_cut(sg: nx.Graph, graph_name=''):
     
     return final_partitions
 
-def split_graph_by_fiedler_vector(sg:nx.Graph, graph_name='', threshold=1e-2):
+def split_graph_by_fiedler_vector(sg:nx.Graph, graph_name='', threshold=1e-5):
     '''
     Split the graph by fiedler vector to gain global optimized result.
     Fiedler cutting can reach lowest cut value and #node balance at the same time.
@@ -202,10 +207,9 @@ def split_graph_by_fiedler_vector(sg:nx.Graph, graph_name='', threshold=1e-2):
 
     if find_conflict_alleles(sg) == []:
         return nx.connected_components(sg)
-
     final_partitions = []
 
-    fiedler_vector = nx.fiedler_vector(sg, tol=1e-3, normalized=True, method='lanczos', seed=114514)
+    fiedler_vector = nx.fiedler_vector(sg, tol=1e-3, normalized=True, method='tracemin_lu', seed=114514)
     partitions = [[],[]]
     for i, node in enumerate(sg.nodes):
         if abs(fiedler_vector[i]) < threshold:
@@ -295,7 +299,7 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
                     if len(cleared_sg.nodes) < 100:
                         num_remove_node = 1
                     else:
-                        num_remove_node = int(math.floor(len(cleared_sg.nodes)*0.2))
+                        num_remove_node = int(math.floor(len(cleared_sg.nodes)*0.05))
                 else:
                     num_remove_node = int(opt.remove_node)
                 _1_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=num_remove_node)
@@ -306,7 +310,8 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
                         continue
                     final_partitions += split_graph_by_fiedler_vector(sg.subgraph(partition), graph_name, threshold=opt.fiedler_threshold)
             else:
-                final_partitions += split_graph_by_fiedler_vector(cleared_sg, graph_name, threshold=opt.fiedler_threshold)
+                # final_partitions += split_graph_by_fiedler_vector(cleared_sg, graph_name, threshold=opt.fiedler_threshold)
+                final_partitions += split_graph_by_min_cut(cleared_sg, graph_name)
             
             residual_graph = nx.Graph(sg)
 
