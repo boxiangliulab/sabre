@@ -106,6 +106,9 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
     predict_pairs = 0
     correct_pairs = 0
 
+    genome_coverage = []
+    correct_variants = 0
+
     final_graph = nx.Graph()
     final_graph = de_duplicate(final_graph, nonconflicted_nodes, 'non')
     final_graph = de_duplicate(final_graph, resolved_conflicted_nodes, 'con')
@@ -132,7 +135,7 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
     if not os.path.exists('./output/{}'.format(opt.id)):
         os.mkdir('./output/{}'.format(opt.id))
 
-    with open('./output/{}/chr_{}_haplotypes.tsv'.format(opt.id, opt.chr), 'w') as f:
+    with open('./output/{}/chr_{}_haplotypes.tsv'.format(opt.id, opt.chr), 'w') as f, open('./output/{}/{}.output.SABRE'.format(opt.id, opt.chr), 'w') as g:
         f.write('haplotype\tpredicted_phasing\tgt_phasing\tcorrection\n')
         for nodes in final_haplotypes:
             # var_phasing_list: [(chr1_147242777_._G_C, 1), ...]
@@ -156,6 +159,7 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
                 else:
                     splited_haplotypes[-1].append(pair)
 
+            idx = 0
             for hap in splited_haplotypes:
 
                 if len(hap) <= 1: continue
@@ -178,6 +182,7 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
 
                 predict_pairs += math.comb(len(predicted_phasing_str), 2)
                 if is_correct:
+                    correct_variants += len(predicted_phasing_str)
                     correct_pairs += math.comb(len(predicted_phasing_str), 2)
                 else:
                     cnt = 0
@@ -186,10 +191,19 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
                             cnt += 1
                     correct_pairs += math.comb(len(predicted_phasing_str)-cnt, 2)
                     correct_pairs += math.comb(cnt, 2)
+                    correct_variants += max(len(predicted_phasing_str)-cnt, cnt)
+
+                genome_poses = list(map(lambda x: int(x.split(opt.sep)[1]), vids))
+                genome_coverage.append(max(genome_poses) - min(genome_poses))
 
                 f.write('{}\t{}\t{}\t{}\n'.format(vids_string, predicted_phasing_str, gt_phasing_str, is_correct))
+                g.write('BLOCK: offset: {} len: {} phased: {} SPAN: {} correct: {}\n'.format(vid_var_map[vids[0]].end, len(vids), len(vids), vid_var_map[vids[-1]].end - vid_var_map[vids[0]].end, is_correct))
+                for vid, p_, g_ in zip(vids, phasing, list(map(lambda x: vid_var_map[x].genotype_string.split('|')[0] if vid_var_map[x].is_phased else '-', vids))):
+                    g.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(idx, p_, abs(1-int(p_)), opt.chr, vid_var_map[vid].end, vid_var_map[vid].unique_id.split(opt.sep)[-2 + int(p_)], vid_var_map[vid].unique_id.split(opt.sep)[-2 + abs(1-int(p_))], '{}|{}'.format(g_, abs(1-int(g_)))))
+                    idx += 1
+                g.write('****************\n')
 
-    return total_hap, correct_hap, total_predict, correct_predict, len(total_var_set), final_graph, predict_pairs, correct_pairs
+    return total_hap, correct_hap, total_predict, correct_predict, len(total_var_set), final_graph, predict_pairs, correct_pairs, correct_variants, genome_coverage 
 
 
 

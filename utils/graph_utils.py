@@ -80,7 +80,7 @@ def find_connected_components(G:nx.Graph):
 
     for component in nx.connected_components(G):
         subgraphs.append(G.subgraph(component))
-        total_possible_pairs += math.comb(len(component), 2)
+        #total_possible_pairs += math.comb(len(component), 2)
     return subgraphs, total_possible_pairs
 
 def find_conflict_graphs(opt, subgraphs:list[nx.Graph], vid_var_map):
@@ -299,7 +299,7 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
                     if len(cleared_sg.nodes) < 100:
                         num_remove_node = 1
                     else:
-                        num_remove_node = int(math.floor(len(cleared_sg.nodes)*0.05))
+                        num_remove_node = int(math.floor(len(cleared_sg.nodes)*0.20))
                 else:
                     num_remove_node = int(opt.remove_node)
                 _1_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=num_remove_node)
@@ -310,7 +310,7 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
                         continue
                     final_partitions += split_graph_by_fiedler_vector(sg.subgraph(partition), graph_name, threshold=opt.fiedler_threshold)
             else:
-                # final_partitions += split_graph_by_fiedler_vector(cleared_sg, graph_name, threshold=opt.fiedler_threshold)
+                #final_partitions += split_graph_by_fiedler_vector(cleared_sg, graph_name, threshold=opt.fiedler_threshold)
                 final_partitions += split_graph_by_min_cut(cleared_sg, graph_name)
             
             residual_graph = nx.Graph(sg)

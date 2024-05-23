@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 from utils import file_utils, algo_utils, graph_utils, output_utils
 import argparse
-from rich import print as print__
+from rich import print as print___
 import random
 import numpy as np
 import resource
 
 def prettify_print_header(step, content, end=''):
-    print__('[bold green]----- Step {}:[/bold green] {}'.format(step, content), end=end)
+    print___('[bold green]----- Step {}:[/bold green] {}'.format(step, content), end=end)
 
 def none_print(step='', content='', end=''):
     pass
@@ -17,7 +17,8 @@ def print_to_file(string):
 
 chromosome_status_dict = {}
 
-def main(opt, status_dict):
+def main(opt, status_dict, return_list = None):
+
 
     if opt.total_chr != None:
         status_dict[opt.chr] = 1
@@ -25,7 +26,7 @@ def main(opt, status_dict):
         print__ = print_to_file
     else:
         print_ = prettify_print_header
-        from rich import print as print__
+        print__ = print___
     
     print__('''[purple]
         +---------------------------------------+
@@ -77,14 +78,15 @@ def main(opt, status_dict):
     print_(8, 'Resolving conflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
     print_(9, 'Reporting phasing result...', end='\r')
-    total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map)
+    total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs, correct_variants, genome_coverage = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map)
     if opt.singular:
         output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, mean=min_mean, var=min_var, n=min_n)
     print_(9, 'Reporting phasing result COMPLETED!', '\n')
     print__("Phasing on chromosome {} COMPLETED!".format(opt.chr))
-    print__("Phased Vars:\t {} variants in total.".format(total_nodes))    
-    print__("Overall:\t {} haplotypes in total, {} haplotypes are in coordinate with ground truth with {} total phasable variants. Haplotype accuracy is {:.4f}%. Variants Recall is {:.4f}%. Average haplotype length is {:.4f}.".format(total_hap, correct_hap,phasable_variants, correct_hap/total_hap * 100, total_nodes/phasable_variants *100, total_nodes/total_hap))
-    print__("Pairwise Metric:\t {} pairs in total, {} pairs are in coordinate with ground truth, {} total possible pairs. Pairwise accuracy is {:.4f}%. Pairwise recall is {:.4f}%".format(predict_pairs, correct_pairs, total_possible_pairs, correct_pairs/predict_pairs* 100, predict_pairs/total_possible_pairs * 100))
+    print__('--------------------------------------------------------------')
+    print__("Overall:\n#Haplotypes:\t\t {}\n#Correct Haplotypes:\t {}\n#Total variants:\t {}\n#Phased Variants:\t {}\n#Correct Variants:\t {}\nHaplotype accuracy:\t {:.4f}%\nVariants Precision:\t {:.4f}%\nVariants Recall:\t {:.4f}%\nAverage hap length:\t {:.4f}\nGenome Coverage:\t {:.4f}".format(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, correct_hap/total_hap * 100, correct_variants/total_nodes * 100, total_nodes/phasable_variants *100, total_nodes/total_hap, sum(genome_coverage)/len(genome_coverage)))
+    print__('--------------------------------------------------------------')
+    print__("Pairwise Metric:\n #Phased pairs:\t\t {}\nCorrect pairs:\t\t {}\nTotal pairs:\t\t {}\nPairwise accuracy:\t {:.4f}%\nPairwise recall:\t {:.4f}%".format(predict_pairs, correct_pairs, total_possible_pairs, correct_pairs/predict_pairs* 100, predict_pairs/total_possible_pairs * 100))
     print__("Global maximum memory usage: {}MB\nTime consumed: {}s".format(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4), round((resource.getrusage(resource.RUSAGE_SELF).ru_utime + resource.getrusage(resource.RUSAGE_SELF).ru_stime), 4)))
     print__('''[purple]
         +---------------------------------------+
@@ -96,6 +98,9 @@ def main(opt, status_dict):
 
     if opt.total_chr != None:
         status_dict[opt.chr] = 2
+    
+    if return_list is not None:
+        return_list[opt.chr] =(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, genome_coverage, predict_pairs, correct_pairs, total_possible_pairs)
 
 
 import time
@@ -141,7 +146,6 @@ if __name__ == '__main__':
     parser.add_argument("--remove_node", help="Remove no more than $remove_node$ in split_graph_by_common_shortest_path",default='auto', type=str)
     parser.add_argument("--shortest_path", help="Decide whether activate split_graph_by_common_shortest_path.", action='store_false')
     parser.add_argument("--as_quality", help="A filter on alignment score in BAM files", default=0.05, type=float)
-    parser.add_argument("--neglect_overlap", help="Neglect overlap when deal with reads overlaps", action='store_true')
     parser.add_argument("--edge_threshold", help="A filter on low confidence edges on graph", default=10, type=int)
     parser.add_argument("--verbose", help="Determine whether output conflicted graphs", action='store_true')
     parser.add_argument("--seed", help="Random seed", type=int, default=42)
@@ -154,6 +158,9 @@ if __name__ == '__main__':
     opt = parser.parse_args()
     
     opt.chr_vcf = opt.chr if opt.chr_vcf is None else opt.chr_vcf
+
+    random.seed(opt.seed)
+    np.random.seed(opt.seed)
     
     if opt.chr == 'all':
         from multiprocessing import Pool, Process, Manager
@@ -165,17 +172,34 @@ if __name__ == '__main__':
         with Pool(opt.thread) as pool, Manager() as manager:
             args = []
             chromosome_status_dict = manager.dict()
-            for idx in list(range(1, opt.total_chr+1)) + ['X']:
+            return_list = manager.dict()
+            for idx in list(range(1, opt.total_chr+1))+ ['X']:
                 chr_ = opt.chr_prefix+str(idx)
                 chromosome_status_dict[chr_] = 0
                 temp = copy.deepcopy(opt)
                 temp.chr = chr_
                 temp.chr_vcf = chr_
-                args.append((temp, chromosome_status_dict))
+                args.append((temp, chromosome_status_dict, return_list))
             p = Process(target=watcher, args=(chromosome_status_dict,))
             p.daemon = True
             p.start()
             pool.starmap(main, args)
+            total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, genome_coverage, predict_pairs, correct_pairs, total_possible_pairs = 0, 0, 0, 0, 0, [], 0, 0, 0
+            for chr_, list_ in return_list.items():
+                total_hap += list_[0]
+                correct_hap += list_[1]
+                phasable_variants += list_[2]
+                total_nodes += list_[3]
+                correct_variants += list_[4]
+                genome_coverage += list_[5]
+                predict_pairs += list_[6]
+                correct_pairs += list_[7]
+                total_possible_pairs += list_[8]
+            p.kill()
+            print('--------------------------------------------------------------')
+            print("Overall:\n#Haplotypes:\t\t {}\n#Correct Haplotypes:\t {}\n#Total variants:\t {}\n#Phased Variants:\t {}\n#Correct Variants:\t {}\nHaplotype accuracy:\t {:.4f}%\nVariants Precision:\t {:.4f}%\nVariants Recall:\t {:.4f}%\nAverage hap length:\t {:.4f}\nGenome Coverage:\t {:.4f}".format(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, correct_hap/total_hap * 100, correct_variants/total_nodes * 100, total_nodes/phasable_variants *100, total_nodes/total_hap, sum(genome_coverage)/len(genome_coverage))) 
+            print('--------------------------------------------------------------')
+            print("Pairwise Metric:\n#Phased pairs:\t\t {}\nCorrect pairs:\t\t {}\nTotal pairs:\t\t {}\nPairwise accuracy:\t {:.4f}%\nPairwise recall:\t {:.4f}%".format(predict_pairs, correct_pairs, total_possible_pairs, correct_pairs/predict_pairs* 100, predict_pairs/total_possible_pairs * 100)) 
     else:
         main(opt, None)
 
