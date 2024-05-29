@@ -310,8 +310,8 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
                         continue
                     final_partitions += split_graph_by_fiedler_vector(sg.subgraph(partition), graph_name, threshold=opt.fiedler_threshold)
             else:
-                #final_partitions += split_graph_by_fiedler_vector(cleared_sg, graph_name, threshold=opt.fiedler_threshold)
-                final_partitions += split_graph_by_min_cut(cleared_sg, graph_name)
+                final_partitions += split_graph_by_fiedler_vector(cleared_sg, graph_name, threshold=opt.fiedler_threshold)
+                #final_partitions += split_graph_by_min_cut(cleared_sg, graph_name)
             
             residual_graph = nx.Graph(sg)
 
