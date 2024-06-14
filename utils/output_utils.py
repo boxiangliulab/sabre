@@ -135,8 +135,7 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
     if not os.path.exists('./output/{}'.format(opt.id)):
         os.mkdir('./output/{}'.format(opt.id))
 
-    with open('./output/{}/chr_{}_haplotypes.tsv'.format(opt.id, opt.chr), 'w') as f, open('./output/{}/{}.output.SABRE'.format(opt.id, opt.chr), 'w') as g:
-        f.write('haplotype\tpredicted_phasing\tgt_phasing\tcorrection\n')
+    with open('./output/{}/{}.output.SABRE'.format(opt.id, opt.chr), 'w') as g:
         for nodes in final_haplotypes:
             # var_phasing_list: [(chr1_147242777_._G_C, 1), ...]
             var_phasing_list = list(map(lambda x: x.split(':'), nodes))
@@ -196,10 +195,9 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
                 genome_poses = list(map(lambda x: int(x.split(opt.sep)[1]), vids))
                 genome_coverage.append(max(genome_poses) - min(genome_poses))
 
-                f.write('{}\t{}\t{}\t{}\n'.format(vids_string, predicted_phasing_str, gt_phasing_str, is_correct))
                 g.write('BLOCK: offset: {} len: {} phased: {} SPAN: {} correct: {}\n'.format(vid_var_map[vids[0]].end, len(vids), len(vids), vid_var_map[vids[-1]].end - vid_var_map[vids[0]].end, is_correct))
                 for vid, p_, g_ in zip(vids, phasing, list(map(lambda x: vid_var_map[x].genotype_string.split('|')[0] if vid_var_map[x].is_phased else '-', vids))):
-                    g.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(idx, p_, abs(1-int(p_)), opt.chr, vid_var_map[vid].end, vid_var_map[vid].unique_id.split(opt.sep)[-2 + int(p_)], vid_var_map[vid].unique_id.split(opt.sep)[-2 + abs(1-int(p_))], '{}|{}'.format(g_, abs(1-int(g_)))))
+                    g.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(idx, p_, abs(1-int(p_)), opt.chr, vid_var_map[vid].end, vid_var_map[vid].unique_id.split(opt.sep)[-2 + int(p_)], vid_var_map[vid].unique_id.split(opt.sep)[-2 + abs(1-int(p_))], '{}|{}'.format(g_, abs(1-int(g_))) if g_ != '-' else '-|-'))
                     idx += 1
                 g.write('****************\n')
 
@@ -357,6 +355,9 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
                 if check_haplotype(gt_phasing_str, ''.join(map(lambda x:x.split(':')[1], allele_pair))):
                     is_correct = 1
                 f.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], allele_pair)), ''.join(map(lambda x:x.split(':')[1], allele_pair)),link_value, p_value, barcode_pair_neg_map[barcode][allele_pair], barcode_pair_global_neg_map[allele_pair], pair_neg_count_map[allele_pair],is_correct,pair_singular_map[allele_pair]))
-
-
-
+    with open('./output/{}/cell_allele_connections_{}.txt'.format(opt.id, opt.chr), 'w') as f:
+        f.write('barcode\tvar\tgeno\tsupport\n')
+        for edge in allele_linkage_graph.edges:
+            barcode_weight_map = allele_linkage_graph.edges[edge]['barcodes']
+            for barcode, support in barcode_weight_map.items():
+                f.write('{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], edge)), ''.join(map(lambda x:x.split(':')[1], edge)), support))

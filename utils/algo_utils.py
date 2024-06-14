@@ -100,15 +100,13 @@ def decompress_qual(s):
 
     return ''.join(decompressed)[::-1]
 
-def binary_search(pos:int, variants, right_bound=0):
+def binary_search(pos:int, variants, left, right, right_bound=0):
     '''
     Typical binary search,
     Time complexity: O(logn)
     '''
-
-    left, right = 0, len(variants) - 1
     while left <= right:
-        mid = left + (right - left) // 2
+        mid = (left + right) >> 1
         value = variants[mid].end
         if value == pos:
             return mid + right_bound
@@ -127,6 +125,7 @@ def read_var_map(opt, reads, variants):
     '''
     # First, sort all the variants by their starting point on the genome.
     variants = sorted(variants, key=lambda x: x.end)
+    variants_len = len(variants) - 1
     total_match = 0
     match_once = 0
     read_count = 0
@@ -138,14 +137,21 @@ def read_var_map(opt, reads, variants):
     edge_barcode_map = collections.defaultdict(dict)
     # TO deal with paired reads. Map alleles to qnames instead of reads.
     allele_linkage_map = collections.defaultdict(int)
+    mapped_variants_cache = collections.defaultdict(int)
 
     # Then, map read on variants by binary search
     for read in reads:
         read_count += 1
         mapped_variants = []
         for span in read.read_spans:
-            left_end = binary_search(span[0], variants, right_bound = 0)
-            right_end = binary_search(span[1], variants, right_bound = 1)
+            left_end = mapped_variants_cache.get(span[0])
+            right_end = mapped_variants_cache.get(span[1])
+            if left_end is None:
+                left_end = binary_search(span[0], variants, 0, variants_len, right_bound = 0)
+                mapped_variants_cache[span[0]] = left_end
+            if right_end is None:
+                right_end = binary_search(span[1], variants, 0, variants_len, right_bound = 1)
+                mapped_variants_cache[span[1]] = right_end
 
             if right_end <= left_end:
                 continue

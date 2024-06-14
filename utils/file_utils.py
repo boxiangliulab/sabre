@@ -4,6 +4,7 @@ import gzip
 import numpy as np
 import subprocess
 import os
+import random
 from rich import print
 import collections
 from collections import namedtuple
@@ -155,7 +156,7 @@ def load_vcf(opt):
     else:
         command_line = 'gunzip -c ' + opt.vcf
     
-    vcf_out = tempfile.NamedTemporaryFile(delete=False)
+    vcf_out = tempfile.NamedTemporaryFile(delete=False, dir='/data/cy/tmp')
     vcf_out.close()
     processed_vcf_path = vcf_out.name
 
@@ -265,12 +266,12 @@ def load_bam(opt, bed_file):
     '''
     To load and do simple filtering on BAM files.
     '''
-    bam_out = tempfile.NamedTemporaryFile(delete=False)
+    bam_out = tempfile.NamedTemporaryFile(delete=False, dir='/data/cy/tmp')
     bam_out.close()
     output_sam_path = bam_out.name
 
     # We don't need headers...for now.
-    command = "samtools view {} '{}' -F 0x400 -q {} -L {} > {}".format(opt.bam, opt.chr, opt.mapq_threshold,\
+    command = "samtools view {} '{}' -F 0x400 -@ 6 -q {} -L {} > {}".format(opt.bam, opt.chr, opt.mapq_threshold,\
                                                                              bed_file, output_sam_path)
     err_code = subprocess.check_call("set -euo pipefail && "+command, shell=True, executable='/bin/bash')
 
@@ -289,10 +290,8 @@ def generate_reads(opt, output_sam_path):
     bamline_cnt = 0
     barcode_umi_cnt = collections.defaultdict(int)
     global QUAL_THRESHOLD, ALIGNMENT_FILTER
+    barcode_set = set()
     QUAL_THRESHOLD = 10
-    if opt.memory_efficient:
-        import shelve
-        umibarcode_line_map = shelve.open('bamline', 'n')
     with open(output_sam_path) as sam_file:
         for line in sam_file:
             columns = line.strip('\n').split('\t')
@@ -303,18 +302,12 @@ def generate_reads(opt, output_sam_path):
             for col in other_columns:
                 if col.startswith('AS'):
                     alignment_score = int(col.split(':')[-1])
-                elif col.startswith('RX'):
-                    col_rx = col.split(':')[-1]
-                elif col.startswith('QX'):
-                    col_qx = col.split(':')[-1]
                 # umi
                 elif col.startswith('UB'):
                     col_umi = col.split(':')[-1]
                 # barcode
                 elif col.startswith('CB'):
                     col_barcode = col.split(':')[-1]
-                elif col.startswith('QT'):
-                    col_qt = col.split(':')[-1]
             line = Bamline(col_pos, col_seq, col_qual, col_cigar, alignment_score)
             if opt.input_type == 'cellranger':
                 if col_umi is None or col_barcode is None:
@@ -337,14 +330,15 @@ def generate_reads(opt, output_sam_path):
                 umibarcode_line_map[umi_barcode].append(line)
             bamline_cnt += 1
             barcode_umi_cnt[barcode] += 1
+            barcode_set.add(barcode)
             alignment_scores.append(int(alignment_score))
         os.remove(output_sam_path)
 
         # Filter these reads by alignment score
         ALIGNMENT_FILTER = np.percentile(alignment_scores, opt.as_quality*100)
         alignment_score_filter = -99
+        selected_barcodes = random.sample(barcode_set, int(len(barcode_set) * opt.barcode_ratio / 100)) if opt.barcode_ratio is not None else barcode_set
         for umi_barcode, lines in umibarcode_line_map.items():
-            if opt.memory_efficient: lines = list(map(lambda x: Bamline(*x), lines))
             yield generate_read_from_bamline(umi_barcode=umi_barcode, bamline_list=lines)
         
         if opt.memory_efficient: umibarcode_line_map.close()
@@ -353,7 +347,7 @@ def generate_bed_file(opt, variants:list[Variant]):
     '''
     Generate BED file, which contains var, var_start, var_end
     '''
-    bed_file = tempfile.NamedTemporaryFile(delete=False, mode='wt')
+    bed_file = tempfile.NamedTemporaryFile(delete=False, mode='wt', dir='/data/cy/tmp')
     sep = opt.sep
     for var in variants:
         bed_file.write('{}\t{}\t{}\n'.format(sep.join(var.unique_id.split(sep)[:-4]), var.end-1, var.end))

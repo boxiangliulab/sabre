@@ -299,7 +299,7 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
                     if len(cleared_sg.nodes) < 100:
                         num_remove_node = 1
                     else:
-                        num_remove_node = int(math.floor(len(cleared_sg.nodes)*0.20))
+                        num_remove_node = int(math.floor(len(cleared_sg.nodes)*0.05))
                 else:
                     num_remove_node = int(opt.remove_node)
                 _1_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=num_remove_node)
@@ -308,10 +308,16 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
                     if find_conflict_alleles(sg.subgraph(partition)) == []:
                         final_partitions.append(partition)
                         continue
-                    final_partitions += split_graph_by_fiedler_vector(sg.subgraph(partition), graph_name, threshold=opt.fiedler_threshold)
+                if opt.method == 'fiedler':
+                    final_partitions += split_graph_by_fiedler_vector(cleared_sg, graph_name, threshold=opt.fiedler_threshold)
+                else:
+                    final_partitions += split_graph_by_min_cut(cleared_sg, graph_name)
             else:
-                final_partitions += split_graph_by_fiedler_vector(cleared_sg, graph_name, threshold=opt.fiedler_threshold)
-                #final_partitions += split_graph_by_min_cut(cleared_sg, graph_name)
+                
+                if opt.method == 'fiedler':
+                    final_partitions += split_graph_by_fiedler_vector(cleared_sg, graph_name, threshold=opt.fiedler_threshold)
+                else:
+                    final_partitions += split_graph_by_min_cut(cleared_sg, graph_name)
             
             residual_graph = nx.Graph(sg)
 
