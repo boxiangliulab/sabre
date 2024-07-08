@@ -2,8 +2,8 @@ import networkx as nx
 import collections
 import numpy as np
 import math
-import tqdm
-from memory_profiler import profile
+import os
+import pickle
 
 def output_graph_weights(opt, G:nx.Graph, vid_var_map):
 
@@ -277,9 +277,16 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
     '''
     resolved_nodes = []
     removed_edges = []
-    for sg in subgraphs:
+    for idx, sg in enumerate(subgraphs):
 
         sg = nx.Graph(sg)
+        if opt.output_conflict:
+            if not os.path.exists('./output/{}'.format(opt.id)):
+                os.mkdir('./output/{}'.format(opt.id))
+            if not os.path.exists('./output/{}/conflict_graphs'.format(opt.id)):
+                os.mkdir('./output/{}/conflict_graphs'.format(opt.id))
+            pickle.dump(sg, open('./output/{}/conflict_graphs/{}.{}.gpickle'.format(opt.id, opt.chr, idx), 'wb'))
+
         if len(sg.nodes) > 2:
             edge_weights = list(nx.get_edge_attributes(sg, 'weight').values())
             cut_threshold = np.percentile(edge_weights, opt.edge_threshold)

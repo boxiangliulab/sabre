@@ -151,6 +151,7 @@ if __name__ == '__main__':
     parser.add_argument("--verbose", help="Determine whether output conflicted graphs", action='store_true')
     parser.add_argument("--seed", help="Random seed", type=int, default=42)
     parser.add_argument("--input_type", help="Decide the input type, e.g. cellranger, umitools", type=str, default='cellranger', choices=['cellranger', 'umitools', 'star'])
+    parser.add_argument("--output_conflict", help="Decide whether to output conflict graphs", action='store_true')
     parser.add_argument("--singular", help="Decide whether perform singular cell detection", action='store_true') 
     parser.add_argument("--barcode_ratio", help="The ratio of random selected cell barcodes for phasing", type=float, default=None)
     parser.add_argument("--thread", help="Number of multithread number", type=int, default=8)
@@ -175,8 +176,8 @@ if __name__ == '__main__':
             args = []
             chromosome_status_dict = manager.dict()
             return_list = manager.dict()
-            #for idx in list(range(1, opt.total_chr+1))+ ['X']:
-            for idx in [19] + list(range(1, 19)) + list(range(20,23)):
+            for idx in list(range(1, opt.total_chr+1))+ ['X']:
+            # for idx in [19] + list(range(1, 19)) + list(range(20,23)):
                 chr_ = opt.chr_prefix+str(idx)
                 chromosome_status_dict[chr_] = 0
                 temp = copy.deepcopy(opt)
