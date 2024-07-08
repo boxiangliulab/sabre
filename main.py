@@ -38,50 +38,29 @@ def main(opt, status_dict, return_list = None):
     
     print_('[italic bold green]Running with Options:[/italic bold green]', vars(opt), '\n')
 
-    print_(1, 'Loading and Preprocessing VCF File...', end='\r')
-    if opt.var_format != 'npy':
-        processed_vcf_file = file_utils.load_vcf(opt)
-    else:
-        processed_vcf_file = None
+    processed_vcf_file = file_utils.load_vcf(opt)
     variants, vid_var_map = file_utils.generate_variants(opt, processed_vcf_file)
     bed_file = file_utils.generate_bed_file(opt, variants)
-    print_(1, 'Loading and Preprocessing VCF File [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
-    print_(2, 'Loading and Preprocessing BAM File...', end='\r')
-    output_sam_path = file_utils.load_bam(opt, bed_file)
-    reads = file_utils.generate_reads(opt, output_sam_path)
-    print_(2, 'BAM loading and preprocessing [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
+    output_sam_paths = file_utils.load_bam(opt, bed_file)
+    reads = file_utils.generate_reads(opt, output_sam_paths)
     # As long as we limit the max length of alternative base pairs into 1.
     # We only need to calculate whether the $end$ of an variant lies between a read.
-    print_(3, 'Mapping Alleles to Reads...', end='\r')
     allele_linkage_map, edge_barcode_map, phasable_variants = algo_utils.read_var_map(opt, reads, variants)
-    print_(3, 'Mapping Alleles to Reads [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
-    print_(4, 'Creating the allele linkage graph...', end='\r')
-    allele_linkage_graph, min_mean, min_var, min_n = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map, vid_var_map)
-    print_(4, 'Creating the allele linkage graph [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
+    allele_linkage_graph, min_mean, min_var, min_n = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map)
 
-    print_(5, 'Finding connected components and save them...', end='\r')
     allele_subgraphs, total_possible_pairs = graph_utils.find_connected_components(allele_linkage_graph)
-    print_(5, 'Finding connected components and save them [pink1 bold]COMPLETED![/pink1 bold]', end='\n\n')
 
-    print_(6, 'Finding conflicted subgraphs...', end='\r')
     conflicted_graphs, nonconflicted_graphs = graph_utils.find_conflict_graphs(opt, allele_subgraphs, vid_var_map)
-    print_(6, 'Finding conflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
-    print_(7, 'Reporting nonconflicted subgraphs...', end='\r')
     nonconflicted_nodes, phased_vars = graph_utils.extract_nonconflicted_nodes(nonconflicted_graphs)
-    print_(7, 'Reporting nonconflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
-
-    print_(8, 'Resolving conflicted subgraphs...', end='\r')
+    
     resolved_conflicted_nodes, removed_edges = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, phased_vars)
-    print_(8, 'Resolving conflicted subgraphs [pink1 bold]COMPLETED![/pink1 bold]', '\n\n')
 
-    print_(9, 'Reporting phasing result...', end='\r')
     total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs, correct_variants, genome_coverage = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map)
     if opt.singular:
         output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, mean=min_mean, var=min_var, n=min_n)
-    print_(9, 'Reporting phasing result COMPLETED!', '\n')
     print__("Phasing on chromosome {} COMPLETED!".format(opt.chr))
     print__('--------------------------------------------------------------')
     print__("Overall:\n#Haplotypes:\t\t {}\n#Correct Haplotypes:\t {}\n#Total variants:\t {}\n#Phased Variants:\t {}\n#Correct Variants:\t {}\nHaplotype accuracy:\t {:.4f}%\nVariants Precision:\t {:.4f}%\nVariants Recall:\t {:.4f}%\nAverage hap length:\t {:.4f}\nGenome Coverage:\t {:.4f}".format(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, correct_hap/total_hap * 100, correct_variants/total_nodes * 100, total_nodes/phasable_variants *100, total_nodes/total_hap, sum(genome_coverage)/len(genome_coverage)))
@@ -128,6 +107,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--id", help="A unique run ID string (e.g. sample345)", default='scFaser_test_output')
     parser.add_argument("--bam", help="Indexed BAMs (comma separated) containing aligned reads", required = True, default='')
+    parser.add_argument("--bam_list", help="A list of input BAM files", required = False, default=None)
     parser.add_argument("--vcf", help="VCF for the sample, must be gzipped and tabix indexed.", default='')
     parser.add_argument("--sample", help="Sample name in VCF", required = False, default='')
     parser.add_argument("--npy_path", help="If var_format is set to npy, then this argument determines the path of npy file")
@@ -157,6 +137,7 @@ if __name__ == '__main__':
     parser.add_argument("--thread", help="Number of multithread number", type=int, default=8)
     parser.add_argument("--total_chr", help="Total chromosome count for whole genome phasing", type=int, default=None)
     parser.add_argument("--chr_prefix", help="Chromosome prefix, default chr", type=str, default='chr')
+    parser.add_argument("--tmp_dir", help="Directory of tempfile", type=str, default='./')
 
     opt = parser.parse_args()
     

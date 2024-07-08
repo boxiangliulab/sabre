@@ -2,7 +2,6 @@ import utils.file_utils as file_utils
 import collections
 from rich import print
 import numpy as np
-from pympler import asizeof
 import bidict
 
 BASE_TO_NUM = bidict.bidict([('A', '0'), ('T', '1'), ('C', '2'), ('G', '3')])

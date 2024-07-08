@@ -156,7 +156,7 @@ def load_vcf(opt):
     else:
         command_line = 'gunzip -c ' + opt.vcf
     
-    vcf_out = tempfile.NamedTemporaryFile(delete=False, dir='/data/cy/tmp')
+    vcf_out = tempfile.NamedTemporaryFile(delete=False, dir=opt.tmp_dir)
     vcf_out.close()
     processed_vcf_path = vcf_out.name
 
@@ -184,24 +184,9 @@ def generate_variants(opt, processed_vcf_path):
     filtered_record_num = 0
 
     variants = []
-    if opt.var_format == 'npy':
-        vid_var_map = collections.OrderedDict()
-        var_ = np.load(opt.npy_path, allow_pickle=True).item()
-        for chr_ in var_.keys():
-            if opt.chr_vcf != chr_:
-                continue
-            for variant, geno in var_[chr_].items():
-                chr_, pos, rsid, ref, alt = variant.split(opt.sep)
-                total_record_num += 1
-                variants.append(Variant(opt.chr, pos, rsid, ref, alt, None, geno, True))
-        for var in variants:
-            vid_var_map[var.unique_id] = var
-        print('Received {} variants in total, {} variants taken, {} variants omitted.'.\
-                  format(total_record_num, total_record_num-filtered_record_num, filtered_record_num))
-        return variants, vid_var_map
     with open(processed_vcf_path, 'r') as vcf_file:
         for line in vcf_file:
-            if line.strip('\n').startswith('#'):
+            if line.startswith('#'):
                 continue
 
             total_record_num+=1
@@ -266,20 +251,28 @@ def load_bam(opt, bed_file):
     '''
     To load and do simple filtering on BAM files.
     '''
-    bam_out = tempfile.NamedTemporaryFile(delete=False, dir='/data/cy/tmp')
-    bam_out.close()
-    output_sam_path = bam_out.name
 
-    # We don't need headers...for now.
-    command = "samtools view {} '{}' -F 0x400 -@ 6 -q {} -L {} > {}".format(opt.bam, opt.chr, opt.mapq_threshold,\
-                                                                             bed_file, output_sam_path)
-    err_code = subprocess.check_call("set -euo pipefail && "+command, shell=True, executable='/bin/bash')
+    bam_files = []
+    output_sam_paths = []
+    if opt.bam_list is not None:
+        with open(opt.bam_list) as f:
+            bam_files = list(map(lambda x: x.strip() ,f.readlines()))
+    else:
+        bam_files.append(opt.bam)
+
+    for bam_file in bam_files:
+        bam_out = tempfile.NamedTemporaryFile(delete=False, dir=opt.tmp_dir)
+        bam_out.close()
+        output_sam_paths.append(bam_out.name)
+
+        # We don't need headers...for now.
+        command = "samtools view {} '{}' -F 0x400 -@ 6 -q {} -L {} > {}".format(bam_file, opt.chr, opt.mapq_threshold, bed_file, bam_out.name)
+        err_code = subprocess.check_call("set -euo pipefail && "+command, shell=True, executable='/bin/bash')
 
     os.remove(bed_file)
+    return output_sam_paths
 
-    return output_sam_path
-
-def generate_reads(opt, output_sam_path):
+def generate_reads(opt, output_sam_paths):
     '''
     Generate reads from filtered SAM file from give BAM file.
     Notablly, each line in the BAM file is wrapped as a Bamline.
@@ -288,66 +281,54 @@ def generate_reads(opt, output_sam_path):
     umibarcode_line_map = collections.defaultdict(list)
     alignment_scores = []
     bamline_cnt = 0
-    barcode_umi_cnt = collections.defaultdict(int)
     global QUAL_THRESHOLD, ALIGNMENT_FILTER
-    barcode_set = set()
     QUAL_THRESHOLD = 10
-    with open(output_sam_path) as sam_file:
-        for line in sam_file:
-            columns = line.strip('\n').split('\t')
-            col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq, col_qual = columns[:11]
-            other_columns = columns[11:]
-            alignment_score = -100
-            col_rx, col_qx, col_umi, col_barcode, col_qt = None, None, None, None, None
-            for col in other_columns:
-                if col.startswith('AS'):
-                    alignment_score = int(col.split(':')[-1])
-                # umi
-                elif col.startswith('UB'):
-                    col_umi = col.split(':')[-1]
-                # barcode
-                elif col.startswith('CB'):
-                    col_barcode = col.split(':')[-1]
-            line = Bamline(col_pos, col_seq, col_qual, col_cigar, alignment_score)
-            if opt.input_type == 'cellranger':
-                if col_umi is None or col_barcode is None:
-                    continue
-                else:
-                    barcode, umi = col_barcode, col_umi
-            elif opt.input_type == 'umitools':
-                # SRR8551677.318476227_CTAATGGAGACTAAGT_TCCAGACCGG
-                _, barcode, umi = col_qname.split('_')
-            elif opt.input_type == 'star':
-                # AGATGTACTATCAGCAACATTGGC_GTGAGGACTT_AAAAAEEEEE_SRR6750053.36514992
-                barcode, umi = col_qname.split('_')[:2]
-            # barcode, umi = str(bamline_cnt), str(bamline_cnt)
-            umi_barcode = '.'.join([umi, barcode])
-            if opt.memory_efficient:
-                if umi_barcode not in umibarcode_line_map.keys():
-                    umibarcode_line_map[umi_barcode] = []
-                umibarcode_line_map[umi_barcode] = umibarcode_line_map[umi_barcode] + [line]
-            else:
+    for index, output_sam_path in enumerate(output_sam_paths):
+        with open(output_sam_path) as sam_file:
+            for line in sam_file:
+                columns = line.strip('\n').split('\t')
+                col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq, col_qual = columns[:11]
+                other_columns = columns[11:]
+                alignment_score = -100
+                col_umi, col_barcode = None, None
+                for col in other_columns:
+                    if col.startswith('AS'):
+                        alignment_score = int(col.split(':')[-1])
+                    # umi
+                    elif col.startswith('UB'):
+                        col_umi = col.split(':')[-1]
+                    # barcode
+                    elif col.startswith('CB'):
+                        col_barcode = col.split(':')[-1]
+                line = Bamline(col_pos, col_seq, col_qual, col_cigar, alignment_score)
+                if opt.input_type == 'cellranger':
+                    if col_umi is None or col_barcode is None:
+                        continue
+                    else:
+                        barcode, umi = col_barcode, col_umi
+                elif opt.input_type == 'umitools':
+                    # SRR8551677.318476227_CTAATGGAGACTAAGT_TCCAGACCGG
+                    _, barcode, umi = col_qname.split('_')
+                elif opt.input_type == 'star':
+                    # AGATGTACTATCAGCAACATTGGC_GTGAGGACTT_AAAAAEEEEE_SRR6750053.36514992
+                    barcode, umi = col_qname.split('_')[:2]
+                # barcode, umi = str(bamline_cnt), str(bamline_cnt)
+                umi_barcode = '.'.join([umi, barcode]) + '_{}'.format(index)
                 umibarcode_line_map[umi_barcode].append(line)
-            bamline_cnt += 1
-            barcode_umi_cnt[barcode] += 1
-            barcode_set.add(barcode)
-            alignment_scores.append(int(alignment_score))
-        os.remove(output_sam_path)
+                bamline_cnt += 1
+                alignment_scores.append(int(alignment_score))
+            os.remove(output_sam_path)
 
         # Filter these reads by alignment score
         ALIGNMENT_FILTER = np.percentile(alignment_scores, opt.as_quality*100)
-        alignment_score_filter = -99
-        selected_barcodes = random.sample(barcode_set, int(len(barcode_set) * opt.barcode_ratio / 100)) if opt.barcode_ratio is not None else barcode_set
         for umi_barcode, lines in umibarcode_line_map.items():
             yield generate_read_from_bamline(umi_barcode=umi_barcode, bamline_list=lines)
-        
-        if opt.memory_efficient: umibarcode_line_map.close()
 
 def generate_bed_file(opt, variants:list[Variant]):
     '''
     Generate BED file, which contains var, var_start, var_end
     '''
-    bed_file = tempfile.NamedTemporaryFile(delete=False, mode='wt', dir='/data/cy/tmp')
+    bed_file = tempfile.NamedTemporaryFile(delete=False, mode='wt', dir=opt.tmp_dir)
     sep = opt.sep
     for var in variants:
         bed_file.write('{}\t{}\t{}\n'.format(sep.join(var.unique_id.split(sep)[:-4]), var.end-1, var.end))

@@ -23,22 +23,14 @@ def output_graph_weights(opt, G:nx.Graph, vid_var_map):
 
         G.nodes[node]['x'] = float(pos_x)
         G.nodes[node]['y'] = float(pos_y)
-    '''
-    for a, b, data in G.edges.data():
-        if node_pos_map[a][1] != node_pos_map[b][1]:
-            G.edges[a,b]['right'] = 0
-            wrong_edge_weights.append(data['weight'])
-            continue
-        G.edges[a,b]['right'] = 1
-        right_edge_weights.append(data['weight'])
-    '''
+        
     nx.write_graphml(G, './output/original_graph_{}.graphml'.format(opt.chr))
     
     np.save('non-gcn-weight', nx.get_edge_attributes(G, 'weight'))
     np.save('right_edge_weights', right_edge_weights)
     np.save('wrong_edge_weights', wrong_edge_weights)
 
-def create_graph(opt, allele_linkage_map, var_barcode_map, vid_var_map):
+def create_graph(opt, allele_linkage_map, var_barcode_map):
     '''
     Use allele linkage to create allele linkage graph.
     Notablly, in comparison with phaser, informations of linkage by read are completely reserved.
