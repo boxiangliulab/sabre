@@ -253,17 +253,18 @@ def load_bam(opt, bed_file):
     '''
 
     bam_files = []
+
     output_sam_paths = []
     if opt.bam_list is not None:
         with open(opt.bam_list) as f:
-            bam_files = list(map(lambda x: x.strip() ,f.readlines()))
+            bam_files = list(map(lambda x: x.strip().split(',') ,f.readlines()))
     else:
-        bam_files.append(opt.bam)
+        bam_files.append([opt.bam, '1'])
 
-    for bam_file in bam_files:
+    for bam_file, name in bam_files:
         bam_out = tempfile.NamedTemporaryFile(delete=False, dir=opt.tmp_dir)
         bam_out.close()
-        output_sam_paths.append(bam_out.name)
+        output_sam_paths.append([bam_out.name, name])
 
         # We don't need headers...for now.
         command = "samtools view {} '{}' -F 0x400 -@ 6 -q {} -L {} > {}".format(bam_file, opt.chr, opt.mapq_threshold, bed_file, bam_out.name)
@@ -283,7 +284,7 @@ def generate_reads(opt, output_sam_paths):
     bamline_cnt = 0
     global QUAL_THRESHOLD, ALIGNMENT_FILTER
     QUAL_THRESHOLD = 10
-    for index, output_sam_path in enumerate(output_sam_paths):
+    for output_sam_path, name in output_sam_paths:
         with open(output_sam_path) as sam_file:
             for line in sam_file:
                 columns = line.strip('\n').split('\t')
@@ -313,7 +314,7 @@ def generate_reads(opt, output_sam_paths):
                     # AGATGTACTATCAGCAACATTGGC_GTGAGGACTT_AAAAAEEEEE_SRR6750053.36514992
                     barcode, umi = col_qname.split('_')[:2]
                 # barcode, umi = str(bamline_cnt), str(bamline_cnt)
-                umi_barcode = '.'.join([umi, barcode]) + '_{}'.format(index)
+                umi_barcode = '.'.join([umi, barcode]) + '_{}'.format(name)
                 umibarcode_line_map[umi_barcode].append(line)
                 bamline_cnt += 1
                 alignment_scores.append(int(alignment_score))

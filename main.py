@@ -61,6 +61,9 @@ def main(opt, status_dict, return_list = None):
     total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs, correct_variants, genome_coverage = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map)
     if opt.singular:
         output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, mean=min_mean, var=min_var, n=min_n)
+    if opt.allele_linkage:
+        output_utils.report_allele_linkage(opt, allele_linkage_graph)
+        
     print__("Phasing on chromosome {} COMPLETED!".format(opt.chr))
     print__('--------------------------------------------------------------')
     print__("Overall:\n#Haplotypes:\t\t {}\n#Correct Haplotypes:\t {}\n#Total variants:\t {}\n#Phased Variants:\t {}\n#Correct Variants:\t {}\nHaplotype accuracy:\t {:.4f}%\nVariants Precision:\t {:.4f}%\nVariants Recall:\t {:.4f}%\nAverage hap length:\t {:.4f}\nGenome Coverage:\t {:.4f}".format(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, correct_hap/total_hap * 100, correct_variants/total_nodes * 100, total_nodes/phasable_variants *100, total_nodes/total_hap, sum(genome_coverage)/len(genome_coverage)))
@@ -133,6 +136,7 @@ if __name__ == '__main__':
     parser.add_argument("--input_type", help="Decide the input type, e.g. cellranger, umitools", type=str, default='cellranger', choices=['cellranger', 'umitools', 'star'])
     parser.add_argument("--output_conflict", help="Decide whether to output conflict graphs", action='store_true')
     parser.add_argument("--singular", help="Decide whether perform singular cell detection", action='store_true') 
+    parser.add_argument("--allele_linkage", help="Decide whether output allele linkage count", action='store_true') 
     parser.add_argument("--barcode_ratio", help="The ratio of random selected cell barcodes for phasing", type=float, default=None)
     parser.add_argument("--thread", help="Number of multithread number", type=int, default=8)
     parser.add_argument("--total_chr", help="Total chromosome count for whole genome phasing", type=int, default=None)
