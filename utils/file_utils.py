@@ -178,7 +178,7 @@ def generate_variants(opt, processed_vcf_path):
     '''
     To generate wrapped variants from processed VCF file.
     Notablly, a typical VCF File header looks like:
-    #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE_NAME
+    #CHROM    POS    ID    REF    ALT    QUAL    FILTER    INFO    FORMAT    SAMPLE_NAME
     '''
     total_record_num = 0
     filtered_record_num = 0
@@ -335,4 +335,5 @@ def generate_bed_file(opt, variants:list[Variant]):
         bed_file.write('{}\t{}\t{}\n'.format(sep.join(var.unique_id.split(sep)[:-4]), var.end-1, var.end))
     bed_file.close()
     return bed_file.name
+
 

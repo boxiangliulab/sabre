@@ -63,7 +63,6 @@ def main(opt, status_dict, return_list = None):
         output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, mean=min_mean, var=min_var, n=min_n)
     if opt.allele_linkage:
         output_utils.report_allele_linkage(opt, allele_linkage_graph)
-        
     print__("Phasing on chromosome {} COMPLETED!".format(opt.chr))
     print__('--------------------------------------------------------------')
     print__("Overall:\n#Haplotypes:\t\t {}\n#Correct Haplotypes:\t {}\n#Total variants:\t {}\n#Phased Variants:\t {}\n#Correct Variants:\t {}\nHaplotype accuracy:\t {:.4f}%\nVariants Precision:\t {:.4f}%\nVariants Recall:\t {:.4f}%\nAverage hap length:\t {:.4f}\nGenome Coverage:\t {:.4f}".format(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, correct_hap/total_hap * 100, correct_variants/total_nodes * 100, total_nodes/phasable_variants *100, total_nodes/total_hap, sum(genome_coverage)/len(genome_coverage)))
@@ -121,7 +120,6 @@ if __name__ == '__main__':
     parser.add_argument("--interval_threshold", help="Alleles with interval more than this threshold will be considered disconnected.", type=int, default=5000)
     parser.add_argument("--method", help="Split method, e.g. mincut, fiedler", default='fiedler')
     parser.add_argument("--sep", help="Character used to construct split variant information", type=str, default='_')
-    parser.add_argument("--memory_efficient", help="If set true, greatly reduce memory consume while extending runtime.", action='store_true')
     parser.add_argument("--chr_vcf", help="To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF",default=None, type=str)
     parser.add_argument("--neglect_hla", help="Indicate whether neglect variants in HLA region", action='store_true')
     parser.add_argument("--black_list", help="A blacklist, not implemented yet",default=None, type=str)
@@ -141,6 +139,7 @@ if __name__ == '__main__':
     parser.add_argument("--thread", help="Number of multithread number", type=int, default=8)
     parser.add_argument("--total_chr", help="Total chromosome count for whole genome phasing", type=int, default=None)
     parser.add_argument("--chr_prefix", help="Chromosome prefix, default chr", type=str, default='chr')
+    parser.add_argument("--output_vcf", help="Decide whether output vcf or not (severe performance decrease)", action='store_true')
     parser.add_argument("--tmp_dir", help="Directory of tempfile", type=str, default='./')
 
     opt = parser.parse_args()
@@ -199,4 +198,5 @@ if __name__ == '__main__':
             print("Pairwise Metric:\n#Phased pairs:\t\t {}\nCorrect pairs:\t\t {}\nTotal pairs:\t\t {}\nPairwise accuracy:\t {:.4f}%\nPairwise recall:\t {:.4f}%".format(predict_pairs, correct_pairs, total_possible_pairs, correct_pairs/predict_pairs* 100, correct_pairs/total_possible_pairs * 100), file=f)
     else:
         main(opt, None)
+
 

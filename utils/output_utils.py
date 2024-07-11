@@ -118,6 +118,11 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
     if not os.path.exists('./output/{}'.format(opt.id)):
         os.mkdir('./output/{}'.format(opt.id))
 
+    idx = 0
+    
+    variant_hap_map = {}
+    variant_phase_map = {}
+
     with open('./output/{}/{}.output.SABRE'.format(opt.id, opt.chr), 'w') as g:
         for nodes in final_haplotypes:
             # var_phasing_list: [(chr1_147242777_._G_C, 1), ...]
@@ -141,7 +146,6 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
                 else:
                     splited_haplotypes[-1].append(pair)
 
-            idx = 0
             for hap in splited_haplotypes:
 
                 if len(hap) <= 1: continue
@@ -179,10 +183,17 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
                 genome_coverage.append(max(genome_poses) - min(genome_poses))
 
                 g.write('BLOCK: offset: {} len: {} phased: {} SPAN: {} correct: {}\n'.format(vid_var_map[vids[0]].end, len(vids), len(vids), vid_var_map[vids[-1]].end - vid_var_map[vids[0]].end, is_correct))
+                hap_str = ';'.join(vids)
                 for vid, p_, g_ in zip(vids, phasing, list(map(lambda x: vid_var_map[x].genotype_string.split('|')[0] if vid_var_map[x].is_phased else '-', vids))):
                     g.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(idx, p_, abs(1-int(p_)), opt.chr, vid_var_map[vid].end, vid_var_map[vid].unique_id.split(opt.sep)[-2 + int(p_)], vid_var_map[vid].unique_id.split(opt.sep)[-2 + abs(1-int(p_))], '{}|{}'.format(g_, abs(1-int(g_))) if g_ != '-' else '-|-'))
                     idx += 1
+                    if opt.output_vcf:
+                        variant_hap_map[vid] = hap_str
+                        variant_phase_map[vid] = '{}|{}'.format(p_, abs(1-int(p_)))
                 g.write('****************\n')
+
+    if opt.output_vcf:
+        write_phasing_result_to_vcf(opt, variant_hap_map, variant_phase_map)
 
     return total_hap, correct_hap, total_predict, correct_predict, len(total_var_set), final_graph, predict_pairs, correct_pairs, correct_variants, genome_coverage 
 
@@ -295,3 +306,55 @@ def report_allele_linkage(opt,allele_linkage_graph:nx.Graph):
             barcode_weight_map = allele_linkage_graph.edges[edge]['barcodes']
             for barcode, support in barcode_weight_map.items():
                 f.write('{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], edge)), ''.join(map(lambda x:x.split(':')[1], edge)), support))
+
+def write_phasing_result_to_vcf(opt, variant_hap_map, variant_phase_map):
+
+    import tempfile
+    import subprocess
+    import gzip
+
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, dir=opt.tmp_dir)
+    input_vcf = tmp_file.name
+    tmp_file.close()
+    
+    gzip_stream = gzip.open(opt.vcf, 'rt')
+    vcf_column_index_map = collections.OrderedDict()
+    for line in gzip_stream:
+        if line.strip().startswith('#CHR'):
+            column_names = line.strip().split('\t')
+            vcf_column_index_map = dict(map(lambda x: (x, column_names.index(x)), column_names))
+            break
+    gzip_stream.close()
+    sample_column = vcf_column_index_map[opt.sample]+1
+
+    subprocess.check_call('tabix -h {} "{}" | cut -f 1-9,{} > {}'.format(opt.vcf, opt.chr, sample_column, input_vcf), shell=True)
+    format_text = []
+    with open(input_vcf, 'r') as input_file, open('./output/{}/{}.output.vcf'.format(opt.id, opt.chr), 'w') as output_file:
+        for line in input_file.readlines():
+            if '##FORMAT' in line:
+                format_text.append(line)
+                output_file.write(line)
+            elif line.startswith("#CHROM"):
+                if "##FORMAT=<ID=SG," not in format_text: output_file.write("##FORMAT=<ID=PG,Number=1,Type=String,Description=\"Sabre Local Genotype\">\n");
+                if "##FORMAT=<ID=SB," not in format_text: output_file.write("##FORMAT=<ID=PB,Number=1,Type=String,Description=\"Sabre Local Block\">\n");
+                if "##FORMAT=<ID=SI," not in format_text: output_file.write("##FORMAT=<ID=PI,Number=1,Type=String,Description=\"Sabre Local Block Index (unique for each block)\">\n")
+                output_file.write(line)
+            elif line.startswith('#'):
+                output_file.write(line)
+            else:
+                ##CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT  NA06986
+                columns = line.strip().split('\t')
+                col_chr, col_pos, col_id, col_ref, col_alt, col_qual, col_filter, col_info, col_format, col_sample = columns
+                if col_chr == opt.chr:
+                    current_vid = opt.sep.join([col_chr, col_pos, '.', col_ref, col_alt])
+                    col_format = ':'.join(col_format.split(':') + ['SG', 'SB', 'SI'])
+                    if current_vid in variant_hap_map.keys():
+                        sg = variant_phase_map[current_vid]
+                        sb = variant_hap_map[current_vid]
+                        si = str(id(variant_hap_map[current_vid]))
+                        col_sample = ':'.join(col_sample.split(':') + [sg, sb, si])
+                    else:
+                        col_sample = ':'.join(col_sample.split(':') + ['.'] * 3)
+
+                output_file.write('\t'.join([col_chr, col_pos, col_id, col_ref, col_alt, col_qual, col_filter, col_info, col_format, col_sample])+'\n')
+    os.remove(input_vcf)
