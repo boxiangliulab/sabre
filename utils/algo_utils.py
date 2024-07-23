@@ -136,6 +136,8 @@ def read_var_map(opt, reads, variants):
     edge_barcode_map = collections.defaultdict(dict)
     # TO deal with paired reads. Map alleles to qnames instead of reads.
     allele_linkage_map = collections.defaultdict(int)
+    allele_linkage_read_count_map = collections.defaultdict(int)
+    allele_read_count = collections.defaultdict(int)
     mapped_variants_cache = collections.defaultdict(int)
 
     # Then, map read on variants by binary search
@@ -182,7 +184,13 @@ def read_var_map(opt, reads, variants):
         for i in range(0, len(allele_list)-1):
             for j in range(i+1, len(allele_list)):
                 (allele_1, times_1), (allele_2, times_2) = allele_list[i].split('*'), allele_list[j].split('*')
+                edge_raw_read_count = min(times_1, times_2)
                 allele_linkage_map[(allele_1, allele_2)] += 1
+                allele_linkage_read_count_map[(allele_1, allele_2)] += edge_raw_read_count
+                
+                allele_read_count[allele_1] += 1
+                allele_read_count[allele_2] += 1
+                
                 vars_.add(allele_list[i].split(':')[0])
                 vars_.add(allele_list[j].split(':')[0])
 
@@ -196,6 +204,4 @@ def read_var_map(opt, reads, variants):
     print('There are {} pseudo matches, among which {} are considered matched and {} are false matches, {} variants has at least 1 neighbors.'\
           .format(allele_read_matchs+false_read_matchs, allele_read_matchs, false_read_matchs, len(vars_)))
     
-    return allele_linkage_map, edge_barcode_map, len(vars_)
-
-
+    return allele_linkage_map, edge_barcode_map, len(vars_), allele_linkage_read_count_map, allele_read_count

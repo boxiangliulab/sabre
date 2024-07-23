@@ -46,9 +46,9 @@ def main(opt, status_dict, return_list = None):
     reads = file_utils.generate_reads(opt, output_sam_paths)
     # As long as we limit the max length of alternative base pairs into 1.
     # We only need to calculate whether the $end$ of an variant lies between a read.
-    allele_linkage_map, edge_barcode_map, phasable_variants = algo_utils.read_var_map(opt, reads, variants)
+    allele_linkage_map, edge_barcode_map, phasable_variants, allele_linkage_read_count_map, allele_read_count = algo_utils.read_var_map(opt, reads, variants)
 
-    allele_linkage_graph, min_mean, min_var, min_n = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map)
+    allele_linkage_graph, min_mean, min_var, min_n = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map, allele_linkage_read_count_map, allele_read_count)
 
     allele_subgraphs, total_possible_pairs = graph_utils.find_connected_components(allele_linkage_graph)
 
@@ -108,7 +108,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--id", help="A unique run ID string (e.g. sample345)", default='scFaser_test_output')
-    parser.add_argument("--bam", help="Indexed BAMs (comma separated) containing aligned reads", required = True, default='')
+    parser.add_argument("--bam", help="Indexed BAMs (comma separated) containing aligned reads", default='')
     parser.add_argument("--bam_list", help="A list of input BAM files", required = False, default=None)
     parser.add_argument("--vcf", help="VCF for the sample, must be gzipped and tabix indexed.", default='')
     parser.add_argument("--sample", help="Sample name in VCF", required = False, default='')
@@ -120,13 +120,14 @@ if __name__ == '__main__':
     parser.add_argument("--interval_threshold", help="Alleles with interval more than this threshold will be considered disconnected.", type=int, default=5000)
     parser.add_argument("--method", help="Split method, e.g. mincut, fiedler", default='fiedler')
     parser.add_argument("--sep", help="Character used to construct split variant information", type=str, default='_')
+    parser.add_argument("--memory_efficient", help="If set true, greatly reduce memory consume while extending runtime.", action='store_true')
     parser.add_argument("--chr_vcf", help="To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF",default=None, type=str)
     parser.add_argument("--neglect_hla", help="Indicate whether neglect variants in HLA region", action='store_true')
     parser.add_argument("--black_list", help="A blacklist, not implemented yet",default=None, type=str)
     parser.add_argument("--mapq_threshold", '--mapq', help="A filter on bam file. Reads have mapq lower than this threshold will be omitted.",default=60, type=str)
     parser.add_argument("--fiedler_threshold", help="Nodes with corresponding value in fiedler vector lower than threshold will be removed",default=1e-2, type=float)
     parser.add_argument("--remove_node", help="Remove no more than $remove_node$ in split_graph_by_common_shortest_path",default='auto', type=str)
-    parser.add_argument("--shortest_path", help="Decide whether activate split_graph_by_common_shortest_path.", action='store_false')
+    parser.add_argument("--shortest_path", help="Decide whether activate split_graph_by_common_shortest_path.", action='store_true')
     parser.add_argument("--as_quality", help="A filter on alignment score in BAM files", default=0.05, type=float)
     parser.add_argument("--edge_threshold", help="A filter on low confidence edges on graph", default=10, type=int)
     parser.add_argument("--verbose", help="Determine whether output conflicted graphs", action='store_true')

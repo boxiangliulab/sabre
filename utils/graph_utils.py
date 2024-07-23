@@ -30,7 +30,7 @@ def output_graph_weights(opt, G:nx.Graph, vid_var_map):
     np.save('right_edge_weights', right_edge_weights)
     np.save('wrong_edge_weights', wrong_edge_weights)
 
-def create_graph(opt, allele_linkage_map, var_barcode_map):
+def create_graph(opt, allele_linkage_map, var_barcode_map, allele_linkage_read_count_map, allele_read_count):
     '''
     Use allele linkage to create allele linkage graph.
     Notablly, in comparison with phaser, informations of linkage by read are completely reserved.
@@ -43,7 +43,13 @@ def create_graph(opt, allele_linkage_map, var_barcode_map):
         if abs(int(alle_1_pos) - int(alle_2_pos)) > opt.interval_threshold: continue
         barcode_weight_map = var_barcode_map[(alle_1, alle_2)]
         barcode_link_weights += list(barcode_weight_map.values()) 
-        G.add_edges_from([(alle_1, alle_2, {'prime_weight': weight, 'barcodes':barcode_weight_map})])
+        G.add_edges_from([(alle_1, alle_2, {'prime_weight': weight, 'raw_read_count': allele_linkage_read_count_map[(alle_1, alle_2)], 'barcodes':barcode_weight_map})])
+    
+    for node in G.nodes:
+        G.nodes[node]['raw_read_count'] = 0
+        if node in allele_read_count.keys():
+            G.nodes[node]['raw_read_count'] = allele_read_count[node]
+            
     G = graph_aggregation_and_update(G)
     return G, np.mean(barcode_link_weights), np.var(barcode_link_weights, ddof=0), len(barcode_link_weights)
 
@@ -133,7 +139,11 @@ def split_graph_by_common_shortest_path(sg: nx.Graph, graph_name='', max_remove_
     common_nodes_on_short_paths = []
     conflicted_variants = find_conflict_alleles(sg)
     for cv in conflicted_variants:
-        allele_0, allele_1 = '{}:0'.format(cv), '{}:1'.format(cv)
+        nodes = list(map(lambda x: cv in x, sg.nodes))
+        if len(nodes) > 2:
+            return sg
+        else:
+            allele_0, allele_1 = nodes
         common_nodes_on_short_paths += nx.shortest_path(sg, allele_0, allele_1, weight='weight')
         common_nodes_on_short_paths.remove(allele_0)
         common_nodes_on_short_paths.remove(allele_1)
@@ -169,13 +179,16 @@ def split_graph_by_min_cut(sg: nx.Graph, graph_name=''):
     # resolve alleles with higer degree in higher priority.
     variants_degree_map = {}
     for var in conflict_variants:
-        degree_0 = sg.degree(var+':0')
-        degree_1 = sg.degree(var+':1')
-        variants_degree_map[var] = degree_0 + degree_1
+        degrees = []
+        list(map(lambda x: degrees.append(sg.degree(x)), filter(lambda x: var in x, sg.nodes)))
+        variants_degree_map[var] = sum(degrees)
     
     resolve_node = sorted(variants_degree_map.keys(), key=lambda x:variants_degree_map[x], reverse=False)[0]
     
-    cut_value, partitions = nx.minimum_cut(sg, resolve_node+':0', resolve_node+':1', capacity='weight')
+    node_1, node_2 = list(filter(lambda x: var in x, sg.nodes))[:2]
+
+    cut_value, partitions = nx.minimum_cut(sg, node_1, node_2, capacity='weight')
+    #cut_value, partitions = nx.minimum_cut(sg, resolve_node+':0', resolve_node+':1', capacity='weight')
 
     if find_conflict_alleles(sg.subgraph(partitions[0])) == []:
         final_partitions.append(partitions[0])
@@ -331,7 +344,6 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
         for component in nx.connected_components(residual_graph):
             if len(component) > 1:
                 removed_edges.append(residual_graph.subgraph(component))        
-        
     return resolved_nodes, removed_edges
 
 def extract_nonconflicted_nodes(subgraphs: list[nx.Graph]):
