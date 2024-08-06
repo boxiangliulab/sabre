@@ -46,9 +46,9 @@ def create_graph(opt, allele_linkage_map, var_barcode_map, allele_linkage_read_c
         G.add_edges_from([(alle_1, alle_2, {'prime_weight': weight, 'raw_read_count': allele_linkage_read_count_map[(alle_1, alle_2)], 'barcodes':barcode_weight_map})])
     
     for node in G.nodes:
-        G.nodes[node]['raw_read_count'] = 0
+        G.nodes[node]['allele_read_count'] = 0
         if node in allele_read_count.keys():
-            G.nodes[node]['raw_read_count'] = allele_read_count[node]
+            G.nodes[node]['allele_read_count'] = allele_read_count[node]
             
     G = graph_aggregation_and_update(G)
     return G, np.mean(barcode_link_weights), np.var(barcode_link_weights, ddof=0), len(barcode_link_weights)
@@ -127,7 +127,7 @@ def find_conflict_alleles(G: nx.Graph):
     alleles_nodes = list(G.nodes)
     variant_list = list(map(lambda x: x.split(':')[0], alleles_nodes))
     variant_count = collections.Counter(variant_list)
-    return list(filter(lambda x: variant_count[x] == 2, variant_count.keys()))
+    return list(filter(lambda x: variant_count[x] >= 2, variant_count.keys()))
 
 def split_graph_by_common_shortest_path(sg: nx.Graph, graph_name='', max_remove_node=1):
     '''
@@ -139,7 +139,7 @@ def split_graph_by_common_shortest_path(sg: nx.Graph, graph_name='', max_remove_
     common_nodes_on_short_paths = []
     conflicted_variants = find_conflict_alleles(sg)
     for cv in conflicted_variants:
-        nodes = list(map(lambda x: cv in x, sg.nodes))
+        nodes = list(filter(lambda x: cv in x, sg.nodes))
         if len(nodes) > 2:
             return sg
         else:
@@ -159,7 +159,8 @@ def split_graph_by_common_shortest_path(sg: nx.Graph, graph_name='', max_remove_
                 is_conflicted = True
                 break
         
-        if not is_conflicted or i == max_remove_node-1: return nx.connected_components(sg)
+        if not is_conflicted or i == max_remove_node-1:
+            return nx.connected_components(sg)
     
     return []
 
@@ -245,25 +246,6 @@ def split_graph_by_fiedler_vector(sg:nx.Graph, graph_name='', threshold=1e-5):
             final_partitions+=split_graph_by_fiedler_vector(nx.Graph(sg.subgraph(i)))
     
     return final_partitions
-
-def split_graph_by_extracting_singular_cells(opt, sg:nx.Graph):
-    '''
-    If removing one cell can resolve the conflict, then why not?
-    '''
-    if len(sg.nodes) <= 1:
-        return []
-    
-    conflict_variants = find_conflict_alleles(sg)
-    candidate_barcodes = []
-    for cv in conflict_variants:
-        allele_0, allele_1 = '{}:0'.format(cv), '{}:1'.format(cv)
-        sp = nx.shortest_path(sg, allele_0, allele_1)
-        if len(sp) == 3:
-            critical_node = sp[1]
-            critical_barcodes_0 = list(set(sg.nodes[allele_0]['cells'].keys()).intersection(set(sg.nodes[critical_node]['cells'].keys())))
-            critical_barcodes_1 = list(set(sg.nodes[allele_1]['cells'].keys()).intersection(set(sg.nodes[critical_node]['cells'].keys())))
-            candidate_barcodes.append((critical_barcodes_0, critical_barcodes_1))
-    nodes = list(map(lambda x: list(sg.nodes)[x], conflict_variants))
     
 def calculate_graph_difference(G:nx.Graph, H:nx.Graph):
     '''
@@ -315,15 +297,16 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
                 else:
                     num_remove_node = int(opt.remove_node)
                 _1_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=num_remove_node)
+
                 for partition in _1_partitions:
-                
                     if find_conflict_alleles(sg.subgraph(partition)) == []:
+                        if not isinstance(partition, set): continue
                         final_partitions.append(partition)
                         continue
-                if opt.method == 'fiedler':
-                    final_partitions += split_graph_by_fiedler_vector(cleared_sg, graph_name, threshold=opt.fiedler_threshold)
-                else:
-                    final_partitions += split_graph_by_min_cut(cleared_sg, graph_name)
+                    if opt.method == 'fiedler':
+                        final_partitions += split_graph_by_fiedler_vector(cleared_sg.subgraph(partition), graph_name, threshold=opt.fiedler_threshold)
+                    else:
+                        final_partitions += split_graph_by_min_cut(cleared_sg.subgraph(partition), graph_name)
             else:
                 
                 if opt.method == 'fiedler':

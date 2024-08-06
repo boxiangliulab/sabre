@@ -5,6 +5,7 @@ from rich import print as print___
 import random
 import numpy as np
 import resource
+import statistics
 
 def prettify_print_header(step, content, end=''):
     print___('[bold green]----- Step {}:[/bold green] {}'.format(step, content), end=end)
@@ -46,7 +47,7 @@ def main(opt, status_dict, return_list = None):
     reads = file_utils.generate_reads(opt, output_sam_paths)
     # As long as we limit the max length of alternative base pairs into 1.
     # We only need to calculate whether the $end$ of an variant lies between a read.
-    allele_linkage_map, edge_barcode_map, phasable_variants, allele_linkage_read_count_map, allele_read_count = algo_utils.read_var_map(opt, reads, variants)
+    allele_linkage_map, edge_barcode_map, phasable_variants, allele_linkage_read_count_map, allele_read_count, variant_allele_map = algo_utils.read_var_map(opt, reads, variants)
 
     allele_linkage_graph, min_mean, min_var, min_n = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map, allele_linkage_read_count_map, allele_read_count)
 
@@ -58,7 +59,7 @@ def main(opt, status_dict, return_list = None):
     
     resolved_conflicted_nodes, removed_edges = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, phased_vars)
 
-    total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs, correct_variants, genome_coverage = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map)
+    total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs, correct_variants, genome_coverage = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map, variant_allele_map)
     if opt.singular:
         output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, mean=min_mean, var=min_var, n=min_n)
     if opt.allele_linkage:
@@ -120,7 +121,7 @@ if __name__ == '__main__':
     parser.add_argument("--interval_threshold", help="Alleles with interval more than this threshold will be considered disconnected.", type=int, default=5000)
     parser.add_argument("--method", help="Split method, e.g. mincut, fiedler", default='fiedler')
     parser.add_argument("--sep", help="Character used to construct split variant information", type=str, default='_')
-    parser.add_argument("--memory_efficient", help="If set true, greatly reduce memory consume while extending runtime.", action='store_true')
+    parser.add_argument("--non_binary_variant", help="If set, means there may be multipul ALT. for a single variant", action='store_false')
     parser.add_argument("--chr_vcf", help="To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF",default=None, type=str)
     parser.add_argument("--neglect_hla", help="Indicate whether neglect variants in HLA region", action='store_true')
     parser.add_argument("--black_list", help="A blacklist, not implemented yet",default=None, type=str)
@@ -136,7 +137,6 @@ if __name__ == '__main__':
     parser.add_argument("--output_conflict", help="Decide whether to output conflict graphs", action='store_true')
     parser.add_argument("--singular", help="Decide whether perform singular cell detection", action='store_true') 
     parser.add_argument("--allele_linkage", help="Decide whether output allele linkage count", action='store_true') 
-    parser.add_argument("--barcode_ratio", help="The ratio of random selected cell barcodes for phasing", type=float, default=None)
     parser.add_argument("--thread", help="Number of multithread number", type=int, default=8)
     parser.add_argument("--total_chr", help="Total chromosome count for whole genome phasing", type=int, default=None)
     parser.add_argument("--chr_prefix", help="Chromosome prefix, default chr", type=str, default='chr')
@@ -186,7 +186,7 @@ if __name__ == '__main__':
                 total_possible_pairs += list_[8]
             p.kill()
             print('--------------------------------------------------------------')
-            print("Overall:\n#Haplotypes:\t\t {}\n#Correct Haplotypes:\t {}\n#Total variants:\t {}\n#Phased Variants:\t {}\n#Correct Variants:\t {}\nHaplotype accuracy:\t {:.4f}%\nVariants Precision:\t {:.4f}%\nVariants Recall:\t {:.4f}%\nAverage hap length:\t {:.4f}\nGenome Coverage:\t {:.4f}".format(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, correct_hap/total_hap * 100, correct_variants/total_nodes * 100, total_nodes/phasable_variants *100, total_nodes/total_hap, sum(genome_coverage)/len(genome_coverage))) 
+            print("Overall:\n#Haplotypes:\t\t {}\n#Correct Haplotypes:\t {}\n#Total variants:\t {}\n#Phased Variants:\t {}\n#Correct Variants:\t {}\nHaplotype accuracy:\t {:.4f}%\nVariants Precision:\t {:.4f}%\nVariants Recall:\t {:.4f}%\nAverage hap length:\t {:.4f}\nGenome Coverage Median:\t {:.4f}".format(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, correct_hap/total_hap * 100, correct_variants/total_nodes * 100, total_nodes/phasable_variants *100, total_nodes/total_hap, statistics.median(genome_coverage))) 
             print('--------------------------------------------------------------')
             print("Pairwise Metric:\n#Phased pairs:\t\t {}\nCorrect pairs:\t\t {}\nTotal pairs:\t\t {}\nPairwise accuracy:\t {:.4f}%\nPairwise recall:\t {:.4f}%".format(predict_pairs, correct_pairs, total_possible_pairs, correct_pairs/predict_pairs* 100, correct_pairs/total_possible_pairs * 100)) 
             
@@ -194,9 +194,9 @@ if __name__ == '__main__':
             print(strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime()), file=f)
             print(opt, file=f)
             print('--------------------------------------------------------------', file=f)
-            print("Overall:\n#Haplotypes:\t\t {}\n#Correct Haplotypes:\t {}\n#Total variants:\t {}\n#Phased Variants:\t {}\n#Correct Variants:\t {}\nHaplotype accuracy:\t {:.4f}%\nVariants Precision:\t {:.4f}%\nVariants Recall:\t {:.4f}%\nAverage hap length:\t {:.4f}\nGenome Coverage:\t {:.4f}".format(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, correct_hap/total_hap * 100, correct_variants/total_nodes * 100, total_nodes/phasable_variants *100, total_nodes/total_hap, sum(genome_coverage)/len(genome_coverage)), file=f) 
+            print("Overall:\n#Haplotypes:\t\t {}\n#Correct Haplotypes:\t {}\n#Total variants:\t {}\n#Phased Variants:\t {}\n#Correct Variants:\t {}\nHaplotype accuracy:\t {:.4f}%\nVariants Precision:\t {:.4f}%\nVariants Recall:\t {:.4f}%\nAverage hap length:\t {:.4f}\nGenome Coverage Median:\t {:.4f}".format(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, correct_hap/total_hap * 100, correct_variants/total_nodes * 100, total_nodes/phasable_variants *100, total_nodes/total_hap, statistics.median(genome_coverage)), file=f) 
             print('--------------------------------------------------------------', file=f)
-            print("Pairwise Metric:\n#Phased pairs:\t\t {}\nCorrect pairs:\t\t {}\nTotal pairs:\t\t {}\nPairwise accuracy:\t {:.4f}%\nPairwise recall:\t {:.4f}%".format(predict_pairs, correct_pairs, total_possible_pairs, correct_pairs/predict_pairs* 100, correct_pairs/total_possible_pairs * 100), file=f)
+            print("Pairwise Metric:\nPhased pairs:\t\t {}\nCorrect pairs:\t\t {}\nTotal pairs:\t\t {}\nPairwise accuracy:\t {:.4f}%\nPairwise recall:\t {:.4f}%".format(predict_pairs, correct_pairs, total_possible_pairs, correct_pairs/predict_pairs* 100, correct_pairs/total_possible_pairs * 100), file=f)
     else:
         main(opt, None)
 

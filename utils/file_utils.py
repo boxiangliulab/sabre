@@ -4,11 +4,9 @@ import gzip
 import numpy as np
 import subprocess
 import os
-import random
 from rich import print
 import collections
 from collections import namedtuple
-import importlib
 
 QUAL_THRESHOLD = 0
 ALIGNMENT_FILTER = 0
@@ -20,10 +18,16 @@ def create_variant(sep, col_chr, col_pos, col_id, col_ref, col_alt, col_qual, ge
     unique_id = sep.join([col_chr, col_pos, col_id, col_ref, col_alt])
     return Variant(unique_id=unique_id, end=int(col_pos), genotype_string=genotype_string, is_phased=is_phased)
 
-def get_geno_by_allele(variant, allele, sep):
+def get_geno_by_allele(opt, variant, allele, sep):
     if allele == variant.unique_id.split(sep)[-2]:
         return 0 
-    return 1
+    elif not opt.non_binary_variant:
+        return 1
+    elif allele == variant.unique_id.split(sep)[-1]:
+       return 1
+    else:
+       allele = variant.unique_id.split(sep)[-1].split(',').index(allele) + 1 if allele in variant.unique_id.split(sep)[-1] else 2
+       return allele
 
 Read = namedtuple('Read', ['umi_barcode', 'read_seqs', 'read_quals', 'read_spans'])
 

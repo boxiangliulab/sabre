@@ -6,13 +6,17 @@ import math
 import os
 from utils.graph_utils import find_conflict_alleles
 
-def get_opposite_allele(allele, is_opposite=True):
+def get_opposite_allele(allele, variant_allele_map, is_opposite=True):
     '''
     Input: A:0
     Output: A:1
     '''
     if is_opposite:
-        return allele.split(':')[0] + ':{}'.format(0 if allele.split(':')[1] != '0' else 1)
+        allele_list = variant_allele_map[allele.split(':')[0]]
+        if len(allele_list) == 1:
+            return  allele.split(':')[0] + ':{}'.format(0 if allele.split(':')[1] != '0' else 1)
+        else:
+            return allele.split(':')[0] + ':{}'.format(list(allele_list - set([int(allele.split(':')[1])]))[0])
     return allele
 
 def check_haplotype(ground_truth, predict):
@@ -33,7 +37,7 @@ def check_haplotype(ground_truth, predict):
 
     is_opposite = False
     is_first_allele = True
-    predict = predict.replace('2', '1')
+    # predict = predict.replace('2', '1')
     for i, gt in enumerate(ground_truth):
         if gt == '-':
             continue
@@ -47,7 +51,7 @@ def check_haplotype(ground_truth, predict):
                 return False
     return True
 
-def de_duplicate(G:nx.Graph, alleles_list:list[list[str]], flag):
+def de_duplicate(G:nx.Graph, alleles_list:list[list[str]], flag, variant_allele_map):
     '''
     As many of these haplotypes are actually not disjointed from each other, like
         1---2
@@ -62,7 +66,7 @@ def de_duplicate(G:nx.Graph, alleles_list:list[list[str]], flag):
         is_opposite = False
         is_opposite_list = []
         for allele in alleles:
-            opposite_allele = get_opposite_allele(allele)
+            opposite_allele = get_opposite_allele(allele, variant_allele_map)
             if opposite_allele in G.nodes:
                 is_opposite_list.append(True)
             elif allele in G.nodes:
@@ -71,7 +75,7 @@ def de_duplicate(G:nx.Graph, alleles_list:list[list[str]], flag):
             continue
         is_opposite = all(is_opposite_list)
         for i in range(len(alleles)-1):
-            G.add_edge(get_opposite_allele(alleles[i], is_opposite), get_opposite_allele(alleles[i+1], is_opposite), flag=flag)
+            G.add_edge(get_opposite_allele(alleles[i], variant_allele_map, is_opposite), get_opposite_allele(alleles[i+1], variant_allele_map, is_opposite), flag=flag)
     
     return G
 
@@ -89,7 +93,7 @@ def draw_graph_with_weights(folder, G:nx.Graph):
     plt.savefig('./output/{}_graph_pdfs/{}.pdf'.format(folder, list(G.nodes)[0]))
     plt.clf()
 
-def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map):
+def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map, variant_allele_map):
     '''
     Report the phasing result of Faser.
     Nonconflicted nodes and predicted conflicted nodes are reported separately.
@@ -109,8 +113,8 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
     correct_variants = 0
 
     final_graph = nx.Graph()
-    final_graph = de_duplicate(final_graph, nonconflicted_nodes, 'non')
-    final_graph = de_duplicate(final_graph, resolved_conflicted_nodes, 'con')
+    final_graph = de_duplicate(final_graph, nonconflicted_nodes, 'non', variant_allele_map)
+    final_graph = de_duplicate(final_graph, resolved_conflicted_nodes, 'con', variant_allele_map)
 
     final_haplotypes = []
     final_haplotypes = list(nx.connected_components(final_graph))

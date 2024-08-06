@@ -44,6 +44,8 @@ def read_var_map(opt, reads, variants):
     allele_read_count = collections.defaultdict(int)
     mapped_variants_cache = collections.defaultdict(int)
 
+    variant_allele_map = collections.defaultdict(set)
+
     # Then, map read on variants by binary search
     for read in reads:
         read_count += 1
@@ -75,8 +77,9 @@ def read_var_map(opt, reads, variants):
                 continue
             times = len(allele)
             allele_read_matchs += 1
-            geno = file_utils.get_geno_by_allele(var, allele[0], opt.sep)
+            geno = file_utils.get_geno_by_allele(opt, var, allele[0], opt.sep)
             alleles.append(var.unique_id+':'+str(geno)+'*'+str(times))
+            variant_allele_map[var.unique_id].add(geno)
         # there's two ways of implementation
         # first is just link the closest pair of alleles on reads
         # second is link a allele with all the alleles on a same read.
@@ -88,7 +91,7 @@ def read_var_map(opt, reads, variants):
         for i in range(0, len(allele_list)-1):
             for j in range(i+1, len(allele_list)):
                 (allele_1, times_1), (allele_2, times_2) = allele_list[i].split('*'), allele_list[j].split('*')
-                edge_raw_read_count = min(times_1, times_2)
+                edge_raw_read_count = min(int(times_1), int(times_2))
                 allele_linkage_map[(allele_1, allele_2)] += 1
                 allele_linkage_read_count_map[(allele_1, allele_2)] += edge_raw_read_count
                 
@@ -108,4 +111,4 @@ def read_var_map(opt, reads, variants):
     print('There are {} pseudo matches, among which {} are considered matched and {} are false matches, {} variants has at least 1 neighbors.'\
           .format(allele_read_matchs+false_read_matchs, allele_read_matchs, false_read_matchs, len(vars_)))
     
-    return allele_linkage_map, edge_barcode_map, len(vars_), allele_linkage_read_count_map, allele_read_count
+    return allele_linkage_map, edge_barcode_map, len(vars_), allele_linkage_read_count_map, allele_read_count, variant_allele_map
