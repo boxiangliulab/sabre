@@ -1,1 +1,0 @@
-python main.py --bam /data/cy/AIDA_LBD/cellranger_outputs/LBD_SG_HEL_H331_75yo/outs/possorted_genome_bam.bam --vcf /data/cy/AIDA_LBD/cellranger_outputs/LBD_SG_HEL_H331_75yo/outs/variants.vcf.gz --sample LBD_SG_HEL_H331_75yo --chr chr2 --as_quality 0.05 --shortest_path --edge_threshold 5 --mapq_threshold 60 --remove_node auto --raw_vcf --vcf_qual 10

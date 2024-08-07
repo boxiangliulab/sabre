@@ -7,6 +7,7 @@ import os
 from rich import print
 import collections
 from collections import namedtuple
+import re
 
 QUAL_THRESHOLD = 0
 ALIGNMENT_FILTER = 0
@@ -288,6 +289,11 @@ def generate_reads(opt, output_sam_paths):
     bamline_cnt = 0
     global QUAL_THRESHOLD, ALIGNMENT_FILTER
     QUAL_THRESHOLD = 10
+
+    if opt.input_type == 're':
+        bc_re = re.compile(opt.bc_re)
+        umi_re = re.compile(opt.umi_re)
+
     for output_sam_path, name in output_sam_paths:
         with open(output_sam_path) as sam_file:
             for line in sam_file:
@@ -317,6 +323,9 @@ def generate_reads(opt, output_sam_paths):
                 elif opt.input_type == 'star':
                     # AGATGTACTATCAGCAACATTGGC_GTGAGGACTT_AAAAAEEEEE_SRR6750053.36514992
                     barcode, umi = col_qname.split('_')[:2]
+                elif opt.input_type == 're':
+                    barcode, umi = bc_re.findall(line)[0], umi_re.findall(line)[0]
+                    
                 # barcode, umi = str(bamline_cnt), str(bamline_cnt)
                 umi_barcode = '.'.join([umi, barcode]) + '_{}'.format(name)
                 umibarcode_line_map[umi_barcode].append(line)

@@ -7,7 +7,7 @@ test.sh
 utils/__pycache__
 output/*.tsv
 *.gexf
-*.png
+metric/*.png
 *.npy
 output
 *.ipynb

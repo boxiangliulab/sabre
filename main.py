@@ -133,7 +133,9 @@ if __name__ == '__main__':
     parser.add_argument("--edge_threshold", help="A filter on low confidence edges on graph", default=10, type=int)
     parser.add_argument("--verbose", help="Determine whether output conflicted graphs", action='store_true')
     parser.add_argument("--seed", help="Random seed", type=int, default=42)
-    parser.add_argument("--input_type", help="Decide the input type, e.g. cellranger, umitools", type=str, default='cellranger', choices=['cellranger', 'umitools', 'star'])
+    parser.add_argument("--input_type", help="How umi-barcode is provided, e.g. cellranger-style, umitools-style or 're' for custom regular expression.", type=str, default='cellranger', choices=['cellranger', 'umitools', 'star', 're'])
+    parser.add_argument("--bc_re", help="The regular expression for extracting Cell Barcode in the BAM file.", type=str, default=None)
+    parser.add_argument("--umi_re", help="The regular expression for extracting UMI in the BAM file.", type=str, default=None)
     parser.add_argument("--output_conflict", help="Decide whether to output conflict graphs", action='store_true')
     parser.add_argument("--singular", help="Decide whether perform singular cell detection", action='store_true') 
     parser.add_argument("--allele_linkage", help="Decide whether output allele linkage count", action='store_true') 
@@ -144,8 +146,12 @@ if __name__ == '__main__':
     parser.add_argument("--tmp_dir", help="Directory of tempfile", type=str, default='./')
 
     opt = parser.parse_args()
-    
+
+
+    ## argument checking
     opt.chr_vcf = opt.chr if opt.chr_vcf is None else opt.chr_vcf
+    if opt.input_type == 're':
+        assert opt.bc_re is not None and opt.umi_re is not None
 
     random.seed(opt.seed)
     np.random.seed(opt.seed)

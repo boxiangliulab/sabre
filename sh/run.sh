@@ -1,1 +1,0 @@
-python main.py --bam ./data/SG_HEL_B006_L002_5GEX_H003_dedup.bam --vcf ./data/aida_vcfs/chr1.phased.vcf.gz --sample SG_HEL_B006_L002_5GEX_H003_dedup --chr chr1 --as_quality 0.05 --shortest_path --edge_threshold 5 --mapq_threshold 60 --remove_node auto
