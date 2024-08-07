@@ -12,6 +12,7 @@ metric/*.png
 output
 *.ipynb
 *.pkl
-*.txt
+\metric\*.txt
+\output\*.txt
 *.bak
 metric
