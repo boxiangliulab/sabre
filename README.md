@@ -7,7 +7,7 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
  * **Somatic variants**, where haplotypes are shared by mutant cells and their progenies; 
  * **RNA editing variants**, where haplotypes are unique to each cell. Sabre uses ultrafast graph algorithms and is scalable to atlas-scale data with 1M single cells.
 
- Developed and maintained by [Laurentius](#https://github.com/GhostAnderson).
+ Developed and maintained by [Laurentius](https://github.com/GhostAnderson).
 
  Runs on `python 3.x`, requires `samtools`, `bcftools`, `bedtools`.
 
@@ -90,7 +90,7 @@ SRR8551677.64678072     16      chr1    14426   1   ...  BC:ACTACTACT UMI:TAGTAG
  ```
  --bc_re BC:([AGCT]+) --umi_re UMI:([AGCT]+)
  ```
- Further information of regular expression can be found [here](#https://www.w3schools.com/python/python_regex.asp).
+ Further information of regular expression can be found [here](https://www.w3schools.com/python/python_regex.asp).
 
 We applied multiple threshold on the BAM file to achieve balance between precision and sensitivity, with corresponding argument `--mapq`, `--as_quality` etc. Detailed information can be seen [here](#options)
 
