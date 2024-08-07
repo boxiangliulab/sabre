@@ -9,7 +9,7 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
 
  Developed and maintained by [Laurentius](https://github.com/GhostAnderson).
 
- Runs on `python 3.x`, requires `samtools`, `bcftools`, `bedtools`.
+ Runs on `python 3.x`, requires `samtools`, `vcftools`, `bedtools`.
 
  ## Table of contents
 * [Overall Structure](#overall-structure)
@@ -48,7 +48,7 @@ Requires a VCF and BAM, produces a HAPCUT-style output and a phased VCF with com
 **Install Requirements**
 ----
 
-Sabre requires multiple libraries of python to run. Good news is, you can install them all by simpliy typing 
+Sabre requires multiple libraries of python to run. Good news is, with anaconda installed, you can install them all by simpliy typing 
 
 ```bash
 $ conda create --name <env> --file requirements.txt
@@ -89,13 +89,13 @@ SRR8551677.236615618_<Barcodes>_<UMI>
  ```
 SRR8551677.64678072     16      chr1    14426   1   ...  BC:ACTACTACT UMI:TAGTAGTGA ...
  ```
- The corresponding argument for extract cell barcode and UMI from this BAM is
+ The corresponding regular expression for extract cell barcode and UMI from this BAM is
  ```
  --bc_re BC:([AGCT]+) --umi_re UMI:([AGCT]+)
  ```
  Further information of regular expression can be found [here](https://www.w3schools.com/python/python_regex.asp).
 
-We applied multiple threshold on the BAM file to achieve balance between precision and sensitivity, with corresponding argument `--mapq`, `--as_quality` etc. Detailed information can be seen [here](#options)
+We applied multiple threshold on the BAM file to achieve balance between precision and sensitivity, with corresponding argument `--mapq`, `--as_quality` etc. Detailed information can be seen [here](#accuracy--sensitivity-related-options)
 
 **VCF input**
 ----
@@ -110,7 +110,7 @@ $ bcftools view tmp.bcf -o tmp.vcf
 $ bgzip -c tmp.vcf > <your-desired-name>.vcf.gz
 $ tabix -p vcf <your-desired-name>.vcf.gz
 ```
-You can perform further filter on this VCF file or simply indicating `--raw_vcf` and `--vcf_qual <threshold-on-vcf-QUAL>` when using Sabre.
+You can perform further filtering on this VCF file or simply indicating `--raw_vcf` and `--vcf_qual <threshold-on-vcf-QUAL>` when using Sabre.
 
 Sometimes, the input chromosome may contain the **"_"** character, e.g. mm10_1. To prevent errors, you need to specify `--sep <any-character-you-like-except-from-_-and-:>`. And in other circumstances, the naming style of given BAM file and VCF file may be different. You can use `--chr_vcf <chr-on-VCF-file>` to specify the desired chromosome in the VCF file.
 
@@ -177,11 +177,15 @@ The script will generate two outputs:
 * out.of.phase.hits.annotated.csv
 
 A typical example of output is
-```
+```Bash
+#out.of.phase.hits.annotated.csv
 Sample	Var1	Var2	00	01	10	00_cell	01_cell	10_cell	00_raw_count	01_raw_count	10_raw_count	Var1:0	Var1:1	Var2:0	Var2:1	inherit_ratio	somatic_ratio	minor_freq	reads_sum	raw_reads_count_sum	gene
 Sample1	chr12_10435855_._A_G	chr12_10435982_._T_C	3	70	14	3	24	13	3	74	14	383	167	186	310	0.125	0.5416667	3	87	91	KLRC2
 Sample2	chr12_10435931_._C_G	chr12_10435982_._T_C	21	87	63	20	26	34	52	95	206	478	211	186	310	0.5882352941176471	0.7647059	20	171	353	KLRC2
 ```
+where each line represents a in/out-of-phase variant pair, `00/01/10` represents mRNA count of corresponding variant configuration, and `00/01/10_cell` represents the cell number count. `00/01/10_raw_count` reprensents corresponding read count in the BAM file. `Var0/1:0/1` represents the read depth of each allele.
+
+You should perform further custom filtering to get reliable analysis results.
 
  ### Sabre for RNA-editing analysis
 ----
