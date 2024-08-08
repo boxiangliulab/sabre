@@ -13,6 +13,10 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
 
  ## Table of contents
 * [Overall Structure](#overall-structure)
+* [Installation Instructions](#installation-instructions)
+    * [Install from bioconda](#install-from-bioconda-recommended)
+    * [Install from pypi](#install-from-pypi)
+    * [Install from source code](#install-from-souce-code)
 * [Example Usage](#example-usage)
     * [TL;DR](#tldr)
     * [Sabre for scRNA-seq phasing](#sabre-for-scrna-seq-phasng)
