@@ -118,6 +118,9 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
     final_haplotypes = []
     final_haplotypes = list(nx.connected_components(final_graph))
 
+    if not os.path.exists('./output'):
+        os.mkdir('./output')
+
     if not os.path.exists('./output/{}'.format(opt.id)):
         os.mkdir('./output/{}'.format(opt.id))
 

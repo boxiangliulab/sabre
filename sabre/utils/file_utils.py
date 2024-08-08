@@ -311,7 +311,7 @@ def generate_reads(opt, output_sam_paths):
                     # barcode
                     elif col.startswith('CB'):
                         col_barcode = col.split(':')[-1]
-                line = Bamline(col_pos, col_seq, col_qual, col_cigar, alignment_score)
+                bamline = Bamline(col_pos, col_seq, col_qual, col_cigar, alignment_score)
                 if opt.input_type == 'cellranger':
                     if col_umi is None or col_barcode is None:
                         continue
@@ -328,7 +328,7 @@ def generate_reads(opt, output_sam_paths):
                     
                 # barcode, umi = str(bamline_cnt), str(bamline_cnt)
                 umi_barcode = '.'.join([umi, barcode]) + '_{}'.format(name)
-                umibarcode_line_map[umi_barcode].append(line)
+                umibarcode_line_map[umi_barcode].append(bamline)
                 bamline_cnt += 1
                 alignment_scores.append(int(alignment_score))
             os.remove(output_sam_path)

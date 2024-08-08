@@ -111,7 +111,7 @@ SRR8551677.64678072     16      chr1    14426   1   ...  BC:ACTACTACT UMI:TAGTAG
  ```
  The corresponding regular expression for extract cell barcode and UMI from this BAM is
  ```
- --bc_re BC:([AGCT]+) --umi_re UMI:([AGCT]+)
+ --bc_re "BC:([AGCT]+)" --umi_re "UMI:([AGCT]+)"
  ```
  Further information of regular expression can be found [here](https://www.w3schools.com/python/python_regex.asp).
 

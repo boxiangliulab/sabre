@@ -6,6 +6,7 @@ import argparse
 import pandas as pd
 
 def examine_in_phase(lbd_list):
+    in_phase_output = open('./in.phase.hits.txt', 'w')
     for lbd in lbd_list:
         print('Processing {}...'.format(lbd))
         graph_path = './output/{}/conflict_graphs/'.format(lbd)
@@ -42,8 +43,10 @@ def examine_in_phase(lbd_list):
                                                                                             G.nodes[var1+':0']['raw_read_count'], G.nodes[var1+':1']['raw_read_count'], G.nodes[var2+':0']['raw_read_count'], G.nodes[var2+':1']['raw_read_count']))
                         except:
                             continue
+    in_phase_output.close()
 
 def examine_out_of_phase(lbd_list):
+    out_of_phase_output = open('./out.of.phase.hits.txt', 'w')
     for lbd in lbd_list:
         print('Processing {}...'.format(lbd))
         graph_path = './output/{}/conflict_graphs/'.format(lbd)
@@ -70,7 +73,7 @@ def examine_out_of_phase(lbd_list):
                                                                                             G.nodes[var1+':0']['raw_read_count'], G.nodes[var1+':1']['raw_read_count'], G.nodes[var2+':0']['raw_read_count'], G.nodes[var2+':1']['raw_read_count']))
                         except:
                             continue
-
+    out_of_phase_output.close()
 
 
 
@@ -172,10 +175,6 @@ def main():
 
     examine_in_phase(opt.id)
     examine_out_of_phase(opt.id)
-
-
-    in_phase_output = open('./in.phase.hits.txt', 'w')
-    out_of_phase_output = open('./out.of.phase.hits.txt', 'w')
     preprocess('in.phase.hits')
     preprocess('out.of.phase.hits')
     annotate('in.phase.hits')
