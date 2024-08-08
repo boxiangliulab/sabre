@@ -2,8 +2,8 @@ import networkx as nx
 import os
 import pickle
 
-in_phase_output = open('./in.phase.hits.txt', 'w')
-out_of_phase_output = open('./out.of.phase.hits.txt', 'w')
+import argparse
+import pandas as pd
 
 def examine_in_phase(lbd_list):
     for lbd in lbd_list:
@@ -71,17 +71,7 @@ def examine_out_of_phase(lbd_list):
                         except:
                             continue
 
-import argparse
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--id", help="Input ID", required=True)
-parser.add_argument("--gtf", help="Input GTF file", required=True)
-opt = parser.parse_args()
-
-examine_in_phase(opt.id)
-examine_out_of_phase(opt.id)
-
-import pandas as pd
 
 
 def preprocess(output_file):
@@ -174,7 +164,22 @@ def annotate(output_file):
     selected_pairs = selected_pairs[selected_pairs['gene']!=False]
     selected_pairs.to_csv('./{}.annotated.csv', sep='\t', index=False)
 
-preprocess('in.phase.hits')
-preprocess('out.of.phase.hits')
-annotate('in.phase.hits')
-annotate('out.of.phase.hits')
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--id", help="Input ID", required=True)
+    parser.add_argument("--gtf", help="Input GTF file", required=True)
+    opt = parser.parse_args()
+
+    examine_in_phase(opt.id)
+    examine_out_of_phase(opt.id)
+
+
+    in_phase_output = open('./in.phase.hits.txt', 'w')
+    out_of_phase_output = open('./out.of.phase.hits.txt', 'w')
+    preprocess('in.phase.hits')
+    preprocess('out.of.phase.hits')
+    annotate('in.phase.hits')
+    annotate('out.of.phase.hits')
+
+if __name__ == '__main__':
+    main()

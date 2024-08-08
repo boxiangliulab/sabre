@@ -4,7 +4,6 @@ import collections
 import scipy.stats
 import math
 import os
-from utils.graph_utils import find_conflict_alleles
 
 def get_opposite_allele(allele, variant_allele_map, is_opposite=True):
     '''

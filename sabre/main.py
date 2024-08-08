@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from utils import file_utils, algo_utils, graph_utils, output_utils
+from sabre.utils import file_utils, algo_utils, graph_utils, output_utils
 import argparse
 from rich import print as print___
 import random
@@ -18,7 +18,7 @@ def print_to_file(string):
 
 chromosome_status_dict = {}
 
-def main(opt, status_dict, return_list = None):
+def sabre(opt, status_dict, return_list = None):
 
 
     if opt.total_chr != None:
@@ -104,15 +104,15 @@ def watcher(chromosome_status_dict):
             break
 
 
-if __name__ == '__main__':
+def main():
     # # Processing args
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--id", help="A unique run ID string (e.g. sample345)", default='scFaser_test_output')
+    parser.add_argument("--id", help="A unique run ID string (e.g. sample345)", default='scFaser_test_output', required=True)
     parser.add_argument("--bam", help="Indexed BAMs (comma separated) containing aligned reads", default='')
     parser.add_argument("--bam_list", help="A list of input BAM files", required = False, default=None)
     parser.add_argument("--vcf", help="VCF for the sample, must be gzipped and tabix indexed.", default='')
-    parser.add_argument("--sample", help="Sample name in VCF", required = False, default='')
+    parser.add_argument("--sample", help="Sample name in VCF", required = True, default='')
     parser.add_argument("--npy_path", help="If var_format is set to npy, then this argument determines the path of npy file")
     parser.add_argument("--chr", help="To restrict phasing in a given chr on BAM & VCF",default='all', type=str)
     parser.add_argument("--raw_vcf", help="If the vcf is not filtered", action='store_true')
@@ -160,8 +160,8 @@ if __name__ == '__main__':
         from multiprocessing import Pool, Process, Manager
         import copy
 
-        if os.path.exists('./output.txt'):
-            os.remove('./output.txt')
+        if os.path.exists('./SABRE.metrics.output'):
+            os.remove('./SABRE.metrics.output')
         from time import gmtime, strftime
         with Pool(opt.thread) as pool, Manager() as manager, open('SABRE.metrics.output', 'a') as f:
             args = []
@@ -178,7 +178,7 @@ if __name__ == '__main__':
             p = Process(target=watcher, args=(chromosome_status_dict,))
             p.daemon = True
             p.start()
-            pool.starmap(main, args)
+            pool.starmap(sabre, args)
             total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, genome_coverage, predict_pairs, correct_pairs, total_possible_pairs = 0, 0, 0, 0, 0, [], 0, 0, 0
             for chr_, list_ in return_list.items():
                 total_hap += list_[0]
@@ -204,6 +204,8 @@ if __name__ == '__main__':
             print('--------------------------------------------------------------', file=f)
             print("Pairwise Metric:\nPhased pairs:\t\t {}\nCorrect pairs:\t\t {}\nTotal pairs:\t\t {}\nPairwise accuracy:\t {:.4f}%\nPairwise recall:\t {:.4f}%".format(predict_pairs, correct_pairs, total_possible_pairs, correct_pairs/predict_pairs* 100, correct_pairs/total_possible_pairs * 100), file=f)
     else:
-        main(opt, None)
+        sabre(opt, None)
 
 
+if __name__ == '__main__':
+    main()
