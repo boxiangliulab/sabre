@@ -26,7 +26,29 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
 * [Citation](#citation)
 
  ## Overall Structure
-![alt Overall Structure](./doc/overall.png)
+<!-- ![alt Overall Structure](./doc/overall.png) -->
+
+ ## Installation Instructions
+
+ ### Install from bioconda (Recommended)
+ Using anaconda can assure all the dependencies installed correctly. Sabre can be installed from the *bioconda* channel.
+ ```bash
+ $ conda install sabre -c bioconda
+ ```
+
+ ### Install from pypi
+ Installing sabre from pypi requires `samtools`, `tabix`, `bcftools` preinstalled by user.
+ ```bash
+ $ pip install sabre
+ ```
+
+ ### Install from souce code
+ The requirement is the same as installing from pypi.
+ ```bash
+ $ git clone https://github.com/boxiangliulab/Faser-scRNA.git
+ $ cd Faser-scRNA
+ $ pip install .
+ ```
 
  ## Example Usage
 
@@ -34,10 +56,10 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
 
  ```bash
  # On all Chromosomes
-$ python main.py --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME> --total_chr <number-of-chrs-without-chrX> --input_type <cellranger/umitools/re> 
+$ sabre --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME> --total_chr <number-of-chrs-without-chrX> --input_type <cellranger/umitools/re> 
 
  # On one Chromosome
-$ python main.py --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME> --chr <desired_chr> --input_type <cellranger/umitools/re> 
+$ sabre --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME> --chr <desired_chr> --input_type <cellranger/umitools/re> 
  ```
 
  ### Sabre for scRNA-seq phasng
@@ -170,7 +192,7 @@ To perform somatic variations analysis in the paper, you first need to specify `
 And to perform **in-phase** and **out-of-phase** detection, run the following command
 ```bash
 # For somatic variation analysis
-python ./analysis/sabre.somatic.py --id <id> --gtf <path-to-gtf>
+$ sabre-somatic --id <id> --gtf <path-to-gtf>
 ```
 The script will generate two outputs: 
 * in.phase.hits.annotated.csv
