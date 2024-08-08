@@ -20,6 +20,9 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
 * [Example Usage](#example-usage)
     * [TL;DR](#tldr)
     * [Sabre for scRNA-seq phasing](#sabre-for-scrna-seq-phasng)
+        * [BAM input](#bam-input)
+        * [VCF input](#vcf-input)
+        * [Output](#output)
     * [Sabre for somatic variant analysis](#sabre-for-somatic-variation-analysis)
     * [Sabre for RNA-editing analysis](#sabre-for-rna-editing-analysis)
 * [Options](#options)
@@ -70,15 +73,6 @@ $ sabre --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME>
 ----
 
 Requires a VCF and BAM, produces a HAPCUT-style output and a phased VCF with computed haplotype phases and result files containing haplotype details, graph connectivities, and read counts. 
-
-**Install Requirements**
-----
-
-Sabre requires multiple libraries of python to run. Good news is, with anaconda installed, you can install them all by simpliy typing 
-
-```bash
-$ conda create --name <env> --file requirements.txt
-```
 
 **BAM input**
 ----
