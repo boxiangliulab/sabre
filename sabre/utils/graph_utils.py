@@ -50,7 +50,7 @@ def create_graph(opt, allele_linkage_map, var_barcode_map, allele_linkage_read_c
         if node in allele_read_count.keys():
             G.nodes[node]['allele_read_count'] = allele_read_count[node]
             
-    G = graph_aggregation_and_update(G)
+    G = graph_aggregation_and_update(opt, G)
     return G, np.mean(barcode_link_weights), np.var(barcode_link_weights, ddof=0), len(barcode_link_weights)
 
 def visualize_graph(G:nx.Graph, save_name):
@@ -342,7 +342,7 @@ def extract_nonconflicted_nodes(subgraphs: list[nx.Graph]):
     
     return nonconflicted_nodes, set(phased_vars)
 
-def graph_aggregation_and_update(G:nx.Graph):
+def graph_aggregation_and_update(opt, G:nx.Graph):
     '''
     This algorithm is much like a GCN.
     Step 1: Calculate \sum(weight_e) for each node, which is the popularity of each node P_n.
@@ -350,13 +350,14 @@ def graph_aggregation_and_update(G:nx.Graph):
     '''
     # We first calculate weight sum of each node
     # nx.set_node_attributes(G, 0, 'popularity')
-    for node in G.nodes:
-        node_popularity = 0
-        for neighbor_node in G.neighbors(node):
-            node_popularity += G.edges[node, neighbor_node]['prime_weight']
-        G.nodes[node]['popularity'] = node_popularity
-    
-    for n_a, n_b in G.edges:
-        G.edges[n_a, n_b]['weight'] = round(G.edges[n_a, n_b]['prime_weight'] / max(G.nodes[n_a]['popularity'] / G.nodes[n_b]['popularity'], G.nodes[n_b]['popularity']/ G.nodes[n_a]['popularity']), 4)
+    for L in opt.layers:
+        for node in G.nodes:
+            node_popularity = 0
+            for neighbor_node in G.neighbors(node):
+                node_popularity += G.edges[node, neighbor_node]['prime_weight'] if L == 0 else  G.edges[node, neighbor_node]['weight']
+            G.nodes[node]['popularity'] = node_popularity
+
+        for n_a, n_b in G.edges:
+            G.edges[n_a, n_b]['weight'] = round(G.edges[n_a, n_b]['prime_weight'] / max(G.nodes[n_a]['popularity'] / G.nodes[n_b]['popularity'], G.nodes[n_b]['popularity']/ G.nodes[n_a]['popularity']), 4)
     return G
 

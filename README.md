@@ -49,7 +49,7 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
  $ pip install sabre
  ```
 
- ### Install from souce code
+ ### Install from source code
  The requirement is the same as installing from pypi.
  ```bash
  $ git clone https://github.com/boxiangliulab/Faser-scRNA.git
@@ -69,7 +69,7 @@ $ sabre --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME>
 $ sabre --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME> --chr <desired_chr> --input_type <cellranger/umitools/re> 
  ```
 
- ### Sabre for scRNA-seq phasng
+ ### Sabre for scRNA-seq phasing
 ----
 
 Requires a VCF and BAM, produces a HAPCUT-style output and a phased VCF with computed haplotype phases and result files containing haplotype details, graph connectivities, and read counts. 
@@ -241,9 +241,10 @@ To perform somatic variations analysis in the paper, you first need to specify `
 * `--method`: Specify graph split method, e.g. mincut, fiedler.
 * `--fiedler_threshold`: Nodes with corresponding value in fiedler vector lower than threshold will be removed
 * `--shortest_path`: Decide whether activate split_graph_by_common_shortest_path..
-* `--remove_node`: Activate when `--shortest_path` is set. Remove no more than $remove_node$ in split_graph_by_common_shortest_path()
+* `--remove_node`: Activate when `--shortest_path` is set. Remove no more than `remove_node` in split_graph_by_common_shortest_path()
 * `--as_quality`: A filter on alignment score in BAM files.
 * `--edge_threshold`: A filter on low confidence edges on graph.
+* `--layers`: Number of GNN layers. Default 1.
 
 ### Output Options
 * `--verbose`: Determine whether output conflicted graphs.
