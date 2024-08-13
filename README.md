@@ -59,7 +59,7 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
 
  ## Example Usage
 
- ### TLDR
+ ### TL;DR
 
  ```bash
  # On all Chromosomes
@@ -96,10 +96,10 @@ Requires a VCF and BAM, produces a HAPCUT-style output and a phased VCF with com
 SRR8551677.314853539 ... CB:Z:<Barcodes> UB:Z:<UMI> ...
 
  #UMI-tools
-SRR8551677.236615618_<Barcodes>_<UMI>
+SRR8551677.236615618_<Barcodes>_<UMI> ...
 
 #star-solo
-<Barcodes>_<UMI>_AAAAAEEEEE_SRR6750053.36514992
+<Barcodes>_<UMI>_AAAAAEEEEE_SRR6750053.36514992 ...
  ```
  You shall specify your input type by using `--input-type <cellranger/umitools/star>`.
  
@@ -247,7 +247,8 @@ To perform somatic variations analysis in the paper, you first need to specify `
 * `--layers`: Number of GNN layers. Default 1.
 
 ### Output Options
-* `--verbose`: Determine whether output conflicted graphs.
+* `--verbose`: Determine whether output conflicted graphs in pdf and graphml format.
+* `--benchmark`: Determine wheter output benchmark information.
 * `--output_conflict`: Decide whether to output conflict graphs.
 * `--singular`: Decide whether perform singular cell detection.
 * `--allele_linkage`: Decide whether output allele linkage count.

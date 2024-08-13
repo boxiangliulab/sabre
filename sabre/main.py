@@ -65,11 +65,13 @@ def sabre(opt, status_dict, return_list = None):
     if opt.allele_linkage:
         output_utils.report_allele_linkage(opt, allele_linkage_graph)
     print__("Phasing on chromosome {} COMPLETED!".format(opt.chr))
-    print__('--------------------------------------------------------------')
-    print__("Overall:\n#Haplotypes:\t\t {}\n#Correct Haplotypes:\t {}\n#Total variants:\t {}\n#Phased Variants:\t {}\n#Correct Variants:\t {}\nHaplotype accuracy:\t {:.4f}%\nVariants Precision:\t {:.4f}%\nVariants Recall:\t {:.4f}%\nAverage hap length:\t {:.4f}\nGenome Coverage:\t {:.4f}".format(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, correct_hap/total_hap * 100, correct_variants/total_nodes * 100, total_nodes/phasable_variants *100, total_nodes/total_hap, sum(genome_coverage)/len(genome_coverage)))
-    print__('--------------------------------------------------------------')
-    print__("Pairwise Metric:\n #Phased pairs:\t\t {}\nCorrect pairs:\t\t {}\nTotal pairs:\t\t {}\nPairwise accuracy:\t {:.4f}%\nPairwise recall:\t {:.4f}%".format(predict_pairs, correct_pairs, total_possible_pairs, correct_pairs/predict_pairs* 100, predict_pairs/total_possible_pairs * 100))
-    print__("Global maximum memory usage: {}MB\nTime consumed: {}s".format(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4), round((resource.getrusage(resource.RUSAGE_SELF).ru_utime + resource.getrusage(resource.RUSAGE_SELF).ru_stime), 4)))
+
+    if opt.benchmark:
+        print__('--------------------------------------------------------------')
+        print__("Overall:\n#Haplotypes:\t\t {}\n#Correct Haplotypes:\t {}\n#Total variants:\t {}\n#Phased Variants:\t {}\n#Correct Variants:\t {}\nHaplotype accuracy:\t {:.4f}%\nVariants Precision:\t {:.4f}%\nVariants Recall:\t {:.4f}%\nAverage hap length:\t {:.4f}\nGenome Coverage:\t {:.4f}".format(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, correct_hap/total_hap * 100, correct_variants/total_nodes * 100, total_nodes/phasable_variants *100, total_nodes/total_hap, sum(genome_coverage)/len(genome_coverage)))
+        print__('--------------------------------------------------------------')
+        print__("Pairwise Metric:\n #Phased pairs:\t\t {}\nCorrect pairs:\t\t {}\nTotal pairs:\t\t {}\nPairwise accuracy:\t {:.4f}%\nPairwise recall:\t {:.4f}%".format(predict_pairs, correct_pairs, total_possible_pairs, correct_pairs/predict_pairs* 100, predict_pairs/total_possible_pairs * 100))
+        print__("Global maximum memory usage: {}MB\nTime consumed: {}s".format(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4), round((resource.getrusage(resource.RUSAGE_SELF).ru_utime + resource.getrusage(resource.RUSAGE_SELF).ru_stime), 4)))
     print__('''[purple]
         +---------------------------------------+
         |                                       |
@@ -142,6 +144,7 @@ def main():
     parser.add_argument("--thread", help="Number of multithread number", type=int, default=8)
     parser.add_argument("--layers", help="Number of GNN Layer", type=int, default=1)
     parser.add_argument("--total_chr", help="Total chromosome count for whole genome phasing", type=int, default=None)
+    parser.add_argument("--benchmark", help="If set true, will output benchmark metrics", type=bool, action='store_true')
     parser.add_argument("--chr_prefix", help="Chromosome prefix, default chr", type=str, default='chr')
     parser.add_argument("--output_vcf", help="Decide whether output vcf or not (severe performance decrease)", action='store_true')
     parser.add_argument("--tmp_dir", help="Directory of tempfile", type=str, default='./')
@@ -192,6 +195,8 @@ def main():
                 correct_pairs += list_[7]
                 total_possible_pairs += list_[8]
             p.kill()
+        
+        if opt.benchmark:
             print('--------------------------------------------------------------')
             print("Overall:\n#Haplotypes:\t\t {}\n#Correct Haplotypes:\t {}\n#Total variants:\t {}\n#Phased Variants:\t {}\n#Correct Variants:\t {}\nHaplotype accuracy:\t {:.4f}%\nVariants Precision:\t {:.4f}%\nVariants Recall:\t {:.4f}%\nAverage hap length:\t {:.4f}\nGenome Coverage Median:\t {:.4f}".format(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, correct_hap/total_hap * 100, correct_variants/total_nodes * 100, total_nodes/phasable_variants *100, total_nodes/total_hap, statistics.median(genome_coverage))) 
             print('--------------------------------------------------------------')
