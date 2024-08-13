@@ -7,6 +7,9 @@ import numpy as np
 import resource
 import statistics
 
+import warnings
+warnings.filterwarnings("ignore")
+
 def prettify_print_header(step, content, end=''):
     print___('[bold green]----- Step {}:[/bold green] {}'.format(step, content), end=end)
 
@@ -144,7 +147,7 @@ def main():
     parser.add_argument("--thread", help="Number of multithread number", type=int, default=8)
     parser.add_argument("--layers", help="Number of GNN Layer", type=int, default=1)
     parser.add_argument("--total_chr", help="Total chromosome count for whole genome phasing", type=int, default=None)
-    parser.add_argument("--benchmark", help="If set true, will output benchmark metrics", type=bool, action='store_true')
+    parser.add_argument("--benchmark", help="If set true, will output benchmark metrics", action='store_true')
     parser.add_argument("--chr_prefix", help="Chromosome prefix, default chr", type=str, default='chr')
     parser.add_argument("--output_vcf", help="Decide whether output vcf or not (severe performance decrease)", action='store_true')
     parser.add_argument("--tmp_dir", help="Directory of tempfile", type=str, default='./')

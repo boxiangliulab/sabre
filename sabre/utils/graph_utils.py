@@ -345,7 +345,7 @@ def extract_nonconflicted_nodes(subgraphs: list[nx.Graph]):
 def graph_aggregation_and_update(opt, G:nx.Graph):
     '''
     This algorithm is much like a GCN.
-    Step 1: Calculate \sum(weight_e) for each node, which is the popularity of each node P_n.
+    Step 1: Calculate \\sum(weight_e) for each node, which is the popularity of each node P_n.
     Step 2: Normalize each edge weight by the sum of the popularity of its paired end.
     '''
     # We first calculate weight sum of each node

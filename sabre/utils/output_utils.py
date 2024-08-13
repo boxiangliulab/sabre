@@ -1,5 +1,4 @@
 import networkx as nx
-import matplotlib.pyplot as plt
 import collections
 import scipy.stats
 import math
@@ -77,20 +76,6 @@ def de_duplicate(G:nx.Graph, alleles_list:list[list[str]], flag, variant_allele_
             G.add_edge(get_opposite_allele(alleles[i], variant_allele_map, is_opposite), get_opposite_allele(alleles[i+1], variant_allele_map, is_opposite), flag=flag)
     
     return G
-
-def draw_graph_with_weights(folder, G:nx.Graph):
-    '''
-    Demonstrate failed graphs
-    '''
-    pos = nx.spring_layout(G, seed=7)  # positions for all nodes - seed for reproducibility
-    nx.draw_networkx_nodes(G, pos, node_size=10)
-    nx.draw_networkx_edges(G, pos, width=1)
-
-    nx.draw_networkx_labels(G, pos, font_size=5, font_family="sans-serif")
-    edge_labels = nx.get_edge_attributes(G, "weight")
-    nx.draw_networkx_edge_labels(G, pos, edge_labels)
-    plt.savefig('./output/{}_graph_pdfs/{}.pdf'.format(folder, list(G.nodes)[0]))
-    plt.clf()
 
 def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map, variant_allele_map):
     '''

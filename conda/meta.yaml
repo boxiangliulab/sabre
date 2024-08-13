@@ -1,0 +1,30 @@
+package:
+  name: sabre
+  version: "1.0.0"
+
+source:
+  path: ..
+
+build:
+  number: 0
+  script: python setup.py install  # 或其他构建脚本
+
+requirements:
+  build:
+    - python
+    - setuptools
+  run:
+    - python
+    - networkx
+    - numpy
+    - scipy
+    - matplotlib
+    - samtools
+    - tabix
+    - bedtools
+    - rich
+
+about:
+  home: https://github.com/boxiangliulab/Faser-scRNA
+  license: MIT
+  summary: Sabre - Single-cell reAd-Backed umi-awaRE phasing
