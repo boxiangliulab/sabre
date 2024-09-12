@@ -21,7 +21,7 @@ def print_to_file(string):
 
 chromosome_status_dict = {}
 
-def sabre(opt, status_dict, return_list = None):
+def sabre(opt, status_dict, return_list = None, status_list=None):
 
 
     if opt.total_chr != None:
@@ -42,71 +42,78 @@ def sabre(opt, status_dict, return_list = None):
     
     print_('[italic bold green]Running with Options:[/italic bold green]', vars(opt), '\n')
 
-    processed_vcf_file = file_utils.load_vcf(opt)
-    variants, vid_var_map = file_utils.generate_variants(opt, processed_vcf_file)
-    bed_file = file_utils.generate_bed_file(opt, variants)
+    try:
+        processed_vcf_file = file_utils.load_vcf(opt)
+        variants, vid_var_map = file_utils.generate_variants(opt, processed_vcf_file)
+        bed_file = file_utils.generate_bed_file(opt, variants)
 
-    output_sam_paths = file_utils.load_bam(opt, bed_file)
-    reads = file_utils.generate_reads(opt, output_sam_paths)
-    # As long as we limit the max length of alternative base pairs into 1.
-    # We only need to calculate whether the $end$ of an variant lies between a read.
-    allele_linkage_map, edge_barcode_map, phasable_variants, allele_linkage_read_count_map, allele_read_count, variant_allele_map = algo_utils.read_var_map(opt, reads, variants)
+        output_sam_paths = file_utils.load_bam(opt, bed_file)
+        reads = file_utils.generate_reads(opt, output_sam_paths)
+        # As long as we limit the max length of alternative base pairs into 1.
+        # We only need to calculate whether the $end$ of an variant lies between a read.
+        allele_linkage_map, edge_barcode_map, phasable_variants, allele_linkage_read_count_map, allele_read_count, variant_allele_map = algo_utils.read_var_map(opt, reads, variants)
 
-    allele_linkage_graph, min_mean, min_var, min_n = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map, allele_linkage_read_count_map, allele_read_count)
+        allele_linkage_graph, min_mean, min_var, min_n = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map, allele_linkage_read_count_map, allele_read_count)
 
-    allele_subgraphs, total_possible_pairs = graph_utils.find_connected_components(allele_linkage_graph)
+        allele_subgraphs, total_possible_pairs = graph_utils.find_connected_components(allele_linkage_graph)
 
-    conflicted_graphs, nonconflicted_graphs = graph_utils.find_conflict_graphs(opt, allele_subgraphs, vid_var_map)
+        conflicted_graphs, nonconflicted_graphs = graph_utils.find_conflict_graphs(opt, allele_subgraphs, vid_var_map)
 
-    nonconflicted_nodes, phased_vars = graph_utils.extract_nonconflicted_nodes(nonconflicted_graphs)
-    
-    resolved_conflicted_nodes, removed_edges = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, phased_vars)
+        nonconflicted_nodes, phased_vars = graph_utils.extract_nonconflicted_nodes(nonconflicted_graphs)
+        
+        resolved_conflicted_nodes, removed_edges = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, phased_vars)
 
-    total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs, correct_variants, genome_coverage = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map, variant_allele_map)
-    if opt.singular:
-        output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, mean=min_mean, var=min_var, n=min_n)
-    if opt.allele_linkage:
-        output_utils.report_allele_linkage(opt, allele_linkage_graph)
-    print__("Phasing on chromosome {} COMPLETED!".format(opt.chr))
+        total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs, correct_variants, genome_coverage = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map, variant_allele_map)
+        if opt.singular:
+            output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, mean=min_mean, var=min_var, n=min_n)
+        if opt.allele_linkage:
+            output_utils.report_allele_linkage(opt, allele_linkage_graph)
+        print__("Phasing on chromosome {} COMPLETED!".format(opt.chr))
 
-    if opt.benchmark:
-        print__('--------------------------------------------------------------')
-        print__("Overall:\n#Haplotypes:\t\t {}\n#Correct Haplotypes:\t {}\n#Total variants:\t {}\n#Phased Variants:\t {}\n#Correct Variants:\t {}\nHaplotype accuracy:\t {:.4f}%\nVariants Precision:\t {:.4f}%\nVariants Recall:\t {:.4f}%\nAverage hap length:\t {:.4f}\nGenome Coverage:\t {:.4f}".format(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, correct_hap/total_hap * 100, correct_variants/total_nodes * 100, total_nodes/phasable_variants *100, total_nodes/total_hap, sum(genome_coverage)/len(genome_coverage)))
-        print__('--------------------------------------------------------------')
-        print__("Pairwise Metric:\n #Phased pairs:\t\t {}\nCorrect pairs:\t\t {}\nTotal pairs:\t\t {}\nPairwise accuracy:\t {:.4f}%\nPairwise recall:\t {:.4f}%".format(predict_pairs, correct_pairs, total_possible_pairs, correct_pairs/predict_pairs* 100, predict_pairs/total_possible_pairs * 100))
-        print__("Global maximum memory usage: {}MB\nTime consumed: {}s".format(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4), round((resource.getrusage(resource.RUSAGE_SELF).ru_utime + resource.getrusage(resource.RUSAGE_SELF).ru_stime), 4)))
-    print__('''[purple]
-        +---------------------------------------+
-        |                                       |
-        |         [bold green]:trophy:Mission Completed!:trophy:[/bold green]        |
-        |                                       |
-        +---------------------------------------+
-        [/purple]''')
+        if opt.benchmark:
+            print__('--------------------------------------------------------------')
+            print__("Overall:\n#Haplotypes:\t\t {}\n#Correct Haplotypes:\t {}\n#Total variants:\t {}\n#Phased Variants:\t {}\n#Correct Variants:\t {}\nHaplotype accuracy:\t {:.4f}%\nVariants Precision:\t {:.4f}%\nVariants Recall:\t {:.4f}%\nAverage hap length:\t {:.4f}\nGenome Coverage:\t {:.4f}".format(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, correct_hap/total_hap * 100, correct_variants/total_nodes * 100, total_nodes/phasable_variants *100, total_nodes/total_hap, sum(genome_coverage)/len(genome_coverage)))
+            print__('--------------------------------------------------------------')
+            print__("Pairwise Metric:\n #Phased pairs:\t\t {}\nCorrect pairs:\t\t {}\nTotal pairs:\t\t {}\nPairwise accuracy:\t {:.4f}%\nPairwise recall:\t {:.4f}%".format(predict_pairs, correct_pairs, total_possible_pairs, correct_pairs/predict_pairs* 100, predict_pairs/total_possible_pairs * 100))
+            print__("Global maximum memory usage: {}MB\nTime consumed: {}s".format(round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024., 4), round((resource.getrusage(resource.RUSAGE_SELF).ru_utime + resource.getrusage(resource.RUSAGE_SELF).ru_stime), 4)))
+        print__('''[purple]
+            +---------------------------------------+
+            |                                       |
+            |         [bold green]:trophy:Mission Completed!:trophy:[/bold green]        |
+            |                                       |
+            +---------------------------------------+
+            [/purple]''')
 
-    if opt.total_chr != None:
-        status_dict[opt.chr] = 2
-    
-    if return_list is not None:
-        return_list[opt.chr] =(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, genome_coverage, predict_pairs, correct_pairs, total_possible_pairs)
+        if opt.total_chr != None:
+            status_dict[opt.chr] = 2
+        
+        if return_list is not None:
+            return_list[opt.chr] =(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, genome_coverage, predict_pairs, correct_pairs, total_possible_pairs)
+
+    except Exception as e:
+        status_dict[opt.chr] = -1
+        status_list.append('Exception on {}: {}'.format(opt.chr, e))
 
 
 import time
 import os
 
-def watcher(chromosome_status_dict):
+def watcher(chromosome_status_dict, status_list):
     os.system('clear')
     while True:
         res = ''
         sep_count = 0
         for chr_, status in chromosome_status_dict.items():
             sep_count += 1
-            res += '{} Status: [ {} ]'.format(chr_ + ' '*(6-len(chr_)), '✅' if status == 2 else ('⌛️' if status == 1 else '😴'))
+            res += '{} Status: [ {} ]'.format(chr_ + ' '*(6-len(chr_)), '✅' if status == 2 else ('⌛️' if status == 1 else ( '❌' if status == -1  else '😴')))
             res += '\t\t' if sep_count % 4 != 0 else '\n'
         print(res)
-        time.sleep(0.5)
-        os.system('clear')
+        list(map(print, status_list))
         if 0 not in chromosome_status_dict.values() and 1 not in chromosome_status_dict.values():
             break
+        time.sleep(0.5)
+        os.system('clear')
+
 
 
 def main():
@@ -173,6 +180,7 @@ def main():
         with Pool(opt.thread) as pool, Manager() as manager, open('SABRE.metrics.output', 'a') as f:
             args = []
             chromosome_status_dict = manager.dict()
+            status_list = manager.list()
             return_list = manager.dict()
             for idx in list(range(1, opt.total_chr+1))+ ['X']:
             # for idx in [19] + list(range(1, 19)) + list(range(20,23)):
@@ -181,8 +189,8 @@ def main():
                 temp = copy.deepcopy(opt)
                 temp.chr = chr_
                 temp.chr_vcf = chr_
-                args.append((temp, chromosome_status_dict, return_list))
-            p = Process(target=watcher, args=(chromosome_status_dict,))
+                args.append((temp, chromosome_status_dict, return_list, status_list))
+            p = Process(target=watcher, args=(chromosome_status_dict, status_list))
             p.daemon = True
             p.start()
             pool.starmap(sabre, args)
