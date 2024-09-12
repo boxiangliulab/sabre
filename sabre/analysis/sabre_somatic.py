@@ -1,78 +1,233 @@
+# python ~/scratch/sabre/Faser-scRNA-main/sabre/analysis/sabre_somatic.py --id liu-2024 --threads 47 --gtf ~/scratch/refdata-gex-GRCh38-2024-A/genes/genes.gtf
+
 import networkx as nx
+import multiprocessing.managers
 import os
 import pickle
 
 import argparse
 import pandas as pd
 
-def examine_in_phase(lbd_list):
-    in_phase_output = open('./in.phase.hits.txt', 'w')
-    for lbd in lbd_list:
-        print('Processing {}...'.format(lbd))
-        graph_path = './output/{}/conflict_graphs/'.format(lbd)
-        if not os.path.exists(graph_path): return
-        graphs = os.listdir(graph_path)
-        for graph in graphs:
-            try:
-                G = pickle.load(open(graph_path+graph, 'rb'))
-            except:
-                continue
+import time
+from tqdm import tqdm
+
+import copy
+
+import multiprocessing
+
+def update_progress_bars(progress_list, total_iterations, n_processes):
+    bars = [tqdm(total=total_iterations, position=i) for i in range(n_processes)]
+    while True:
+        for i, bar in enumerate(bars):
+            bar.n = progress_list[i]  # 更新tqdm的进度
+            bar.refresh()  # 刷新显示
+        if sum(progress_list) >= (total_iterations-1) * n_processes:
+            break
+        time.sleep(0.1)
+
+def check_in_phase_graph(graphs, graph_path, output_list, lbd, progress_list, thread_id):
+    total_graphs_nums = len(graphs)
+    
+    for graph in graphs:
+        try:
+            G = pickle.load(open(graph_path+graph, 'rb'))
+
             variants = set()
             list(map(lambda x: variants.add(x.split(':')[0]), list(G.nodes)))
             variants = list(variants)
             for i in range(len(variants)-1):
-                for j in range(i, len(variants)):
+                for j in range(i+1, len(variants)):
                     var1, var2 = variants[i], variants[j]
-                    if (var1+':0', var2+':0') in G.edges and (var1+':1', var2+':0') in G.edges and (var1+':1', var2+':1') in G.edges and (var1+':0', var2+':1') not in G.edges:
-                        _00_cell_count = len(G.edges[var1+':0', var2+':0']['barcodes'].keys())
-                        _01_cell_count = len(G.edges[var1+':1', var2+':0']['barcodes'].keys())
-                        _11_cell_count = len(G.edges[var1+':1', var2+':1']['barcodes'].keys())
-                        try:
-                            in_phase_output.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(lbd, graph, var1, var2, G.edges[var1+':0', var2+':0']['prime_weight'], G.edges[var1+':1', var2+':0']['prime_weight'], G.edges[var1+':1', var2+':1']['prime_weight'],\
-                                                                                         _00_cell_count, _01_cell_count, _11_cell_count, G.edges[var1+':0', var2+':0']['raw_read_count'], G.edges[var1+':1', var2+':0']['raw_read_count'], G.edges[var1+':1', var2+':1']['raw_read_count'],\
-                                                                                            G.nodes[var1+':0']['raw_read_count'], G.nodes[var1+':1']['raw_read_count'], G.nodes[var2+':0']['raw_read_count'], G.nodes[var2+':1']['raw_read_count']))
-                        except:
+
+                    node_1_0, node_1_1, node_2_0, node_2_1 = var1+':0', var1+':1', var2+':0', var2+':1'
+
+                    if not (node_1_0 in G and node_1_1 in G and node_2_0 in G and node_2_1 in G): continue
+
+                    G_prime = nx.Graph(G)
+                    G_prime.remove_node(node_1_1)
+                    G_prime.remove_node(node_2_1)
+                    if not nx.has_path(G_prime, node_1_0, node_2_0): continue
+
+                    G_prime = nx.Graph(G)
+                    G_prime.remove_node(node_1_0)
+                    G_prime.remove_node(node_2_0)
+                    if not nx.has_path(G_prime, node_1_1, node_2_1): continue
+
+                    G_prime = nx.Graph(G)
+                    G_prime.remove_node(node_1_1)
+                    G_prime.remove_node(node_2_0)
+                    if nx.has_path(G_prime, node_1_0, node_2_1): 
+                        G_prime = nx.Graph(G)
+                        G_prime.remove_node(node_1_0)
+                        G_prime.remove_node(node_2_1)
+                        if nx.has_path(G_prime, node_1_1, node_2_0):
                             continue
-                    elif (var1+':0', var2+':0') in G.edges and (var1+':0', var2+':1') in G.edges and (var1+':1', var2+':1') in G.edges and (var1+':1', var2+':0') not in G.edges:
-                        _00_cell_count = len(G.edges[var1+':0', var2+':0']['barcodes'].keys())
-                        _01_cell_count = len(G.edges[var1+':0', var2+':1']['barcodes'].keys())
-                        _11_cell_count = len(G.edges[var1+':1', var2+':1']['barcodes'].keys())
-                        try:
-                            in_phase_output.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(lbd, graph, var1, var2, G.edges[var1+':0', var2+':0']['prime_weight'], G.edges[var1+':0', var2+':1']['prime_weight'], G.edges[var1+':1', var2+':1']['prime_weight'],\
-                                                                                         _00_cell_count, _01_cell_count, _11_cell_count, G.edges[var1+':0', var2+':0']['raw_read_count'], G.edges[var1+':0', var2+':1']['raw_read_count'], G.edges[var1+':1', var2+':1']['raw_read_count'],\
-                                                                                            G.nodes[var1+':0']['raw_read_count'], G.nodes[var1+':1']['raw_read_count'], G.nodes[var2+':0']['raw_read_count'], G.nodes[var2+':1']['raw_read_count']))
-                        except:
+
+                        _00_cell_count = len(G.edges[node_1_0, node_2_0]['barcodes'].keys()) if (node_1_0, node_2_0) in G.edges else -1
+                        _01_cell_count = len(G.edges[node_1_0, node_2_1]['barcodes'].keys()) if (node_1_0, node_2_1) in G.edges else -1
+                        _11_cell_count = len(G.edges[node_1_1, node_2_1]['barcodes'].keys()) if (node_1_1, node_2_1) in G.edges else -1
+
+                        _00_cell_prime_weight = G.edges[node_1_0, node_2_0]['prime_weight'] if (node_1_0, node_2_0) in G.edges else -1
+                        _01_cell_prime_weight = G.edges[node_1_0, node_2_1]['prime_weight'] if (node_1_0, node_2_1) in G.edges else -1
+                        _11_cell_prime_weight = G.edges[node_1_1, node_2_1]['prime_weight'] if (node_1_1, node_2_1) in G.edges else -1
+
+                        _00_cell_raw_count = G.edges[node_1_0, node_2_0]['raw_read_count'] if (node_1_0, node_2_0) in G.edges else -1
+                        _01_cell_raw_count = G.edges[node_1_0, node_2_1]['raw_read_count'] if (node_1_0, node_2_1) in G.edges else -1
+                        _11_cell_raw_count = G.edges[node_1_1, node_2_1]['raw_read_count'] if (node_1_1, node_2_1) in G.edges else -1
+
+                        output_list.append('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(lbd, graph, var1, var2, _00_cell_prime_weight, _01_cell_prime_weight, _11_cell_prime_weight,\
+                                                                                        _00_cell_count, _01_cell_count, _11_cell_count, _00_cell_raw_count, _01_cell_raw_count, _11_cell_raw_count, \
+                                                                                        G.nodes[var1+':0']['raw_read_count'], G.nodes[var1+':1']['raw_read_count'], G.nodes[var2+':0']['raw_read_count'], G.nodes[var2+':1']['raw_read_count']))
+                        continue
+
+                    G_prime = nx.Graph(G)
+                    G_prime.remove_node(node_1_0)
+                    G_prime.remove_node(node_2_1)
+                    if nx.has_path(G_prime, node_1_1, node_2_0): 
+                        G_prime = nx.Graph(G)
+                        G_prime.remove_node(node_1_1)
+                        G_prime.remove_node(node_2_0)
+                        if nx.has_path(G_prime, node_1_0, node_2_1):
                             continue
+
+                        _00_cell_count = len(G.edges[node_1_0, node_2_0]['barcodes'].keys()) if (node_1_0, node_2_0) in G.edges else -1
+                        _10_cell_count = len(G.edges[node_1_1, node_2_0]['barcodes'].keys()) if (node_1_1, node_2_0) in G.edges else -1
+                        _11_cell_count = len(G.edges[node_1_1, node_2_1]['barcodes'].keys()) if (node_1_1, node_2_1) in G.edges else -1
+
+                        _00_cell_prime_weight = G.edges[node_1_0, node_2_0]['prime_weight'] if (node_1_0, node_2_0) in G.edges else -1
+                        _10_cell_prime_weight = G.edges[node_1_1, node_2_0]['prime_weight'] if (node_1_1, node_2_0) in G.edges else -1
+                        _11_cell_prime_weight = G.edges[node_1_1, node_2_1]['prime_weight'] if (node_1_1, node_2_1) in G.edges else -1
+
+                        _00_cell_raw_count = G.edges[node_1_0, node_2_0]['raw_read_count'] if (node_1_0, node_2_0) in G.edges else -1
+                        _10_cell_raw_count = G.edges[node_1_1, node_2_0]['raw_read_count'] if (node_1_1, node_2_0) in G.edges else -1
+                        _11_cell_raw_count = G.edges[node_1_1, node_2_1]['raw_read_count'] if (node_1_1, node_2_1) in G.edges else -1
+
+                        output_list.append('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(lbd, graph, var1, var2, _00_cell_prime_weight, _10_cell_prime_weight, _11_cell_prime_weight,\
+                                                                                        _00_cell_count, _10_cell_count, _11_cell_count, _00_cell_raw_count, _10_cell_raw_count, _11_cell_raw_count, \
+                                                                                        G.nodes[var1+':0']['raw_read_count'], G.nodes[var1+':1']['raw_read_count'], G.nodes[var2+':0']['raw_read_count'], G.nodes[var2+':1']['raw_read_count']))
+
+        except Exception as e:
+            raise e
+            continue
+                
+        finally:
+            progress_list[thread_id] += 1
+
+
+def examine_in_phase(opt, lbd):
+    in_phase_output = open('./{}.in.phase.hits.txt'.format(lbd), 'w')
+    print('Processing {} in phase...'.format(lbd))
+    graph_path = './output/{}/conflict_graphs/'.format(lbd)
+    if not os.path.exists(graph_path): return
+    graphs = os.listdir(graph_path)
+    total_iterations = int(len(graphs)/opt.threads) + 1
+
+    with multiprocessing.Manager() as manager:
+        output_list = manager.list()
+        progress_list = manager.list(([0] * opt.threads))
+        
+        processes = []
+        for i in range(opt.threads):
+            p = multiprocessing.Process(target=check_in_phase_graph, args=(graphs[i::8], graph_path, output_list, lbd, progress_list, i))
+            processes.append(p)
+            p.start()
+
+        update_progress_bars(progress_list, total_iterations, opt.threads)
+
+        for p in processes:
+            p.join()
+
+        list(map(in_phase_output.write, set(output_list)))
+
     in_phase_output.close()
 
-def examine_out_of_phase(lbd_list):
-    out_of_phase_output = open('./out.of.phase.hits.txt', 'w')
-    for lbd in lbd_list:
-        print('Processing {}...'.format(lbd))
-        graph_path = './output/{}/conflict_graphs/'.format(lbd)
-        if not os.path.exists(graph_path): return
-        graphs = os.listdir(graph_path)
-        for graph in graphs:
-            try:
-                G = pickle.load(open(graph_path+graph, 'rb'))
-            except:
-                continue
+
+def check_out_of_phase_graph(graphs, graph_path, output_list, lbd, progress_list, thread_id):
+    total_graphs_nums = len(graphs)
+    
+    for graph in graphs:
+        try:
+            G = pickle.load(open(graph_path+graph, 'rb'))
+
             variants = set()
             list(map(lambda x: variants.add(x.split(':')[0]), list(G.nodes)))
             variants = list(variants)
             for i in range(len(variants)-1):
-                for j in range(i, len(variants)):
+                for j in range(i+1, len(variants)):
                     var1, var2 = variants[i], variants[j]
-                    if (var1+':0', var2+':0') in G.edges and (var1+':1', var2+':0') in G.edges and (var1+':0', var2+':1') in G.edges and (var1+':1', var2+':1') not in G.edges:
-                        _00_cell_count = len(G.edges[var1+':0', var2+':0']['barcodes'].keys())
-                        _01_cell_count = len(G.edges[var1+':0', var2+':1']['barcodes'].keys())
-                        _10_cell_count = len(G.edges[var1+':1', var2+':0']['barcodes'].keys())
-                        try:
-                            out_of_phase_output.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(lbd, graph, var1, var2, G.edges[var1+':0', var2+':0']['prime_weight'], G.edges[var1+':0', var2+':1']['prime_weight'], G.edges[var1+':1', var2+':0']['prime_weight'],\
-                                                                                         _00_cell_count, _01_cell_count, _10_cell_count, G.edges[var1+':0', var2+':0']['raw_read_count'], G.edges[var1+':0', var2+':1']['raw_read_count'], G.edges[var1+':1', var2+':0']['raw_read_count'],\
-                                                                                            G.nodes[var1+':0']['raw_read_count'], G.nodes[var1+':1']['raw_read_count'], G.nodes[var2+':0']['raw_read_count'], G.nodes[var2+':1']['raw_read_count']))
-                        except:
-                            continue
+
+                    node_1_0, node_1_1, node_2_0, node_2_1 = var1+':0', var1+':1', var2+':0', var2+':1'
+
+                    if not (node_1_0 in G and node_1_1 in G and node_2_0 in G and node_2_1 in G): continue
+
+                    G_prime = nx.Graph(G)
+                    G_prime.remove_node(node_1_1)
+                    G_prime.remove_node(node_2_0)
+                    if not nx.has_path(G_prime, node_1_0, node_2_1): continue
+
+                    G_prime = nx.Graph(G)
+                    G_prime.remove_node(node_1_0)
+                    G_prime.remove_node(node_2_1)
+                    if not nx.has_path(G_prime, node_1_1, node_2_0): continue
+
+                    G_prime = nx.Graph(G)
+                    G_prime.remove_node(node_1_1)
+                    G_prime.remove_node(node_2_1)
+                    if not nx.has_path(G_prime, node_1_0, node_2_0): continue
+
+                    G_prime = nx.Graph(G)
+                    G_prime.remove_node(node_1_0)
+                    G_prime.remove_node(node_2_0)
+                    if nx.has_path(G_prime, node_1_1, node_2_1): continue
+
+                    _00_cell_count = len(G.edges[node_1_0, node_2_0]['barcodes'].keys()) if (node_1_0, node_2_0) in G.edges else -1
+                    _01_cell_count = len(G.edges[node_1_0, node_2_1]['barcodes'].keys()) if (node_1_0, node_2_1) in G.edges else -1
+                    _10_cell_count = len(G.edges[node_1_1, node_2_0]['barcodes'].keys()) if (node_1_1, node_2_0) in G.edges else -1
+
+                    _00_cell_prime_weight = G.edges[node_1_0, node_2_0]['prime_weight'] if (node_1_0, node_2_0) in G.edges else -1
+                    _01_cell_prime_weight = G.edges[node_1_0, node_2_1]['prime_weight'] if (node_1_0, node_2_1) in G.edges else -1
+                    _10_cell_prime_weight = G.edges[node_1_1, node_2_0]['prime_weight'] if (node_1_1, node_2_0) in G.edges else -1
+
+                    _00_cell_raw_count = G.edges[node_1_0, node_2_0]['raw_read_count'] if (node_1_0, node_2_0) in G.edges else -1
+                    _01_cell_raw_count = G.edges[node_1_0, node_2_1]['raw_read_count'] if (node_1_0, node_2_1) in G.edges else -1
+                    _10_cell_raw_count = G.edges[node_1_1, node_2_0]['raw_read_count'] if (node_1_1, node_2_0) in G.edges else -1
+
+                    output_list.append('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(lbd, graph, var1, var2, _00_cell_prime_weight, _01_cell_prime_weight, _10_cell_prime_weight,\
+                                                                                    _00_cell_count, _01_cell_count, _10_cell_count, _00_cell_raw_count, _01_cell_raw_count, _10_cell_raw_count, \
+                                                                                    G.nodes[var1+':0']['raw_read_count'], G.nodes[var1+':1']['raw_read_count'], G.nodes[var2+':0']['raw_read_count'], G.nodes[var2+':1']['raw_read_count']))
+
+        except Exception as e:
+            raise e
+            continue
+                
+        finally:
+            progress_list[thread_id] += 1
+
+def examine_out_of_phase(opt, lbd):
+    out_of_phase_output = open('./{}.out.of.phase.hits.txt'.format(lbd), 'w')
+    print('Processing {} out-of-phase...'.format(lbd))
+    graph_path = './output/{}/conflict_graphs/'.format(lbd)
+    if not os.path.exists(graph_path): return
+    graphs = os.listdir(graph_path)
+    total_iterations = int(len(graphs)/opt.threads) + 1
+
+    with multiprocessing.Manager() as manager:
+        output_list = manager.list()
+        progress_list = manager.list(([0] * opt.threads))
+        
+        processes = []
+        for i in range(opt.threads):
+            p = multiprocessing.Process(target=check_out_of_phase_graph, args=(graphs[i::8], graph_path, output_list, lbd, progress_list, i))
+            processes.append(p)
+            p.start()
+
+        update_progress_bars(progress_list, total_iterations, opt.threads)
+
+        for p in processes:
+            p.join()
+
+        list(map(out_of_phase_output.write, set(output_list)))
+
     out_of_phase_output.close()
 
 
@@ -114,16 +269,9 @@ def preprocess(output_file):
         _00, _01, _10 = group['00_raw_count'], group['01_raw_count'], group['10_raw_count']
         return sum([_00, _01, _10])
 
-    potential_df['inherit_ratio'] = potential_df.apply(calculate_inherit_ratio, axis=1)
-    potential_df['somatic_ratio'] = potential_df.apply(calculate_somatic_ratio, axis=1)
-    potential_df['minor_freq'] = potential_df.apply(calculate_minor_freq, axis=1)
-
-    potential_df['reads_sum'] = potential_df.apply(sum_reads, axis=1)
-    potential_df['raw_reads_count_sum'] = potential_df.apply(sum_counts, axis=1)
-
     potential_df.to_csv('{}.csv'.format(output_file), index=False)
 
-def annotate(output_file):
+def annotate(opt, output_file, gtf):
     selected_pairs = pd.read_csv('{}.csv'.format(output_file), sep=',')
     # selected_pairs = pd.read_csv('rua.csv', sep=',')
 
@@ -135,7 +283,10 @@ def annotate(output_file):
         list(map(lambda x:f.write('{}\t{}\t{}\n'.format(x.split('_')[0], x.split('_')[1], int(x.split('_')[1])+1)), vars_))
 
     import subprocess
-    cmd = 'bedtools intersect -a sites.bed -b {} -wa -wb | egrep "CDS\t" > annotated_sites.bed'.format(opt.gtf)
+    if opt.cds:
+        cmd = 'bedtools intersect -a sites.bed -b {} -wa -wb > annotated_sites.bed | egrep "CDS"'.format(gtf)
+    else:
+        cmd = 'bedtools intersect -a sites.bed -b {} -wa -wb > annotated_sites.bed'.format(gtf)
     subprocess.check_call(cmd, shell=True)
 
     import re
@@ -153,9 +304,9 @@ def annotate(output_file):
 
     # list(map(lambda x: print(x, end=' '), genes))
 
-    list(map(lambda x: genes.add(gene_name_re.findall(x)[0]), filter(lambda x: 'CDS\t' in x,f.readlines())))
+    # list(map(lambda x: genes.add(gene_name_re.findall(x)[0]), filter(lambda x: 'CDS\t' in x,f.readlines())))
     genes = list(filter(lambda x:'ENSG' not in x, genes))
-    genes = list(filter(lambda x:'IG' not in x, genes))
+    # genes = list(filter(lambda x:'IG' not in x, genes))
     list(map(lambda x: print(x, end=' '), genes))
 
     def find_corresponding_gene(group):
@@ -165,20 +316,23 @@ def annotate(output_file):
 
     selected_pairs['gene'] = selected_pairs.apply(find_corresponding_gene, axis=1)
     selected_pairs = selected_pairs[selected_pairs['gene']!=False]
-    selected_pairs.to_csv('./{}.annotated.csv', sep='\t', index=False)
+    selected_pairs.to_csv('./{}.annotated.csv'.format(output_file), sep='\t', index=False)
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--id", help="Input ID", required=True)
+    parser.add_argument("--threads", help="Multithread number", type=int, default=1)
     parser.add_argument("--gtf", help="Input GTF file", required=True)
+    parser.add_argument("--cds", help="If specified, only mutations on CDS will be phased.", action='store_true')
     opt = parser.parse_args()
 
-    examine_in_phase(opt.id)
-    examine_out_of_phase(opt.id)
-    preprocess('in.phase.hits')
-    preprocess('out.of.phase.hits')
-    annotate('in.phase.hits')
-    annotate('out.of.phase.hits')
+    examine_in_phase(opt, opt.id)
+    preprocess('{}.in.phase.hits'.format(opt.id))
+    annotate(opt, '{}.in.phase.hits'.format(opt.id), opt.gtf)
+
+    examine_out_of_phase(opt, opt.id)
+    preprocess('{}.out.of.phase.hits'.format(opt.id))
+    annotate(opt, '{}.out.of.phase.hits'.format(opt.id), opt.gtf)
 
 if __name__ == '__main__':
     main()
