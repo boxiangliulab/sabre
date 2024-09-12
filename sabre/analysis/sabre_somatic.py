@@ -77,7 +77,7 @@ def check_in_phase_graph(graphs, graph_path, output_list, lbd, progress_list, th
 
                         output_list.append('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(lbd, graph, var1, var2, _00_cell_prime_weight, _01_cell_prime_weight, _11_cell_prime_weight,\
                                                                                         _00_cell_count, _01_cell_count, _11_cell_count, _00_cell_raw_count, _01_cell_raw_count, _11_cell_raw_count, \
-                                                                                        G.nodes[var1+':0']['raw_read_count'], G.nodes[var1+':1']['raw_read_count'], G.nodes[var2+':0']['raw_read_count'], G.nodes[var2+':1']['raw_read_count']))
+                                                                                        G.nodes[var1+':0']['allele_read_count'], G.nodes[var1+':1']['allele_read_count'], G.nodes[var2+':0']['allele_read_count'], G.nodes[var2+':1']['allele_read_count']))
                         continue
 
                     G_prime = nx.Graph(G)
