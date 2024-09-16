@@ -169,7 +169,13 @@ def main():
 
     random.seed(opt.seed)
     np.random.seed(opt.seed)
+
+    if not os.path.exists('./output'):
+        os.mkdir('./output')
     
+    if not os.path.exists('./output/{}'.format(opt.id)):
+        os.mkdir('./output/{}'.format(opt.id))
+        
     if opt.chr == 'all':
         from multiprocessing import Pool, Process, Manager
         import copy

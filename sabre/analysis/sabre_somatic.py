@@ -16,13 +16,14 @@ import copy
 import multiprocessing
 
 def update_progress_bars(progress_list, total_iterations, n_processes):
-    bars = [tqdm(total=total_iterations, position=i) for i in range(n_processes)]
+    bars = [tqdm(total=total_iterations+1, position=i) for i in range(n_processes)]
+    # return
     while True:
         for i, bar in enumerate(bars):
             bar.n = progress_list[i]  # 更新tqdm的进度
             bar.refresh()  # 刷新显示
-        if sum(progress_list) >= (total_iterations-1) * n_processes:
-            break
+        # if sum(progress_list) >= (total_iterations-1) * n_processes:
+        #     break
         time.sleep(0.1)
 
 def check_in_phase_graph(graphs, graph_path, output_list, lbd, progress_list, thread_id):
@@ -107,7 +108,6 @@ def check_in_phase_graph(graphs, graph_path, output_list, lbd, progress_list, th
                                                                                         G.nodes[var1+':0']['allele_read_count'], G.nodes[var1+':1']['allele_read_count'], G.nodes[var2+':0']['allele_read_count'], G.nodes[var2+':1']['allele_read_count']))
 
         except Exception as e:
-            raise e
             continue
                 
         finally:
@@ -124,18 +124,19 @@ def examine_in_phase(opt, lbd):
 
     with multiprocessing.Manager() as manager:
         output_list = manager.list()
-        progress_list = manager.list(([0] * opt.threads))
+        progress_list = manager.list(([0] * (opt.threads-1)))
         
         processes = []
         for i in range(opt.threads):
-            p = multiprocessing.Process(target=check_in_phase_graph, args=(graphs[i::8], graph_path, output_list, lbd, progress_list, i))
+            p = multiprocessing.Process(target=check_in_phase_graph, args=(graphs[i::opt.threads-1], graph_path, output_list, lbd, progress_list, i)) if i != opt.threads-1 else multiprocessing.Process(target=update_progress_bars, args=(progress_list, total_iterations, opt.threads-1))
+            p.deamon = True if i == opt.threads-1 else False
             processes.append(p)
             p.start()
 
-        update_progress_bars(progress_list, total_iterations, opt.threads)
-
-        for p in processes:
+        for p in processes[:-1]:
             p.join()
+        
+        processes[-1].kill()
 
         list(map(in_phase_output.write, set(output_list)))
 
@@ -197,7 +198,7 @@ def check_out_of_phase_graph(graphs, graph_path, output_list, lbd, progress_list
                                                                                     G.nodes[var1+':0']['allele_read_count'], G.nodes[var1+':1']['allele_read_count'], G.nodes[var2+':0']['allele_read_count'], G.nodes[var2+':1']['allele_read_count']))
 
         except Exception as e:
-            raise e
+            print(e)
             continue
                 
         finally:
@@ -209,22 +210,24 @@ def examine_out_of_phase(opt, lbd):
     graph_path = './output/{}/conflict_graphs/'.format(lbd)
     if not os.path.exists(graph_path): return
     graphs = os.listdir(graph_path)
-    total_iterations = int(len(graphs)/opt.threads) + 1
+    total_iterations = int(len(graphs)/(opt.threads-1)) + 1
 
     with multiprocessing.Manager() as manager:
         output_list = manager.list()
-        progress_list = manager.list(([0] * opt.threads))
+        progress_list = manager.list(([0] * (opt.threads-1)))
         
         processes = []
         for i in range(opt.threads):
-            p = multiprocessing.Process(target=check_out_of_phase_graph, args=(graphs[i::8], graph_path, output_list, lbd, progress_list, i))
+            p = multiprocessing.Process(target=check_out_of_phase_graph, args=(graphs[i::opt.threads-1], graph_path, output_list, lbd, progress_list, i)) if i != opt.threads-1 else multiprocessing.Process(target=update_progress_bars, args=(progress_list, total_iterations, opt.threads-1))
+            p.deamon = True if i == opt.threads-1 else False
             processes.append(p)
             p.start()
 
-        update_progress_bars(progress_list, total_iterations, opt.threads)
-
-        for p in processes:
+        for p in processes[:-1]:
             p.join()
+        
+        print('All processes Finished')
+        processes[-1].kill()
 
         list(map(out_of_phase_output.write, set(output_list)))
 
@@ -233,7 +236,7 @@ def examine_out_of_phase(opt, lbd):
 
 
 def preprocess(output_file):
-
+    print('Preprocessing {}...'.format(output_file))
     potential_df = pd.read_csv('./{}.txt'.format(output_file), sep='\t', header=None, names=['Sample', 'File', 'Var1', 'Var2', '00', '01', '10', '00_cell', '01_cell', '10_cell', '00_raw_count', '01_raw_count', '10_raw_count', 'Var1:0', 'Var1:1', 'Var2:0', 'Var2:1'])
 
     potential_df = potential_df[['Sample', 'Var1', 'Var2', '00', '01', '10', '00_cell', '01_cell', '10_cell', '00_raw_count', '01_raw_count', '10_raw_count', 'Var1:0', 'Var1:1', 'Var2:0', 'Var2:1']]
@@ -272,6 +275,7 @@ def preprocess(output_file):
     potential_df.to_csv('{}.csv'.format(output_file), index=False)
 
 def annotate(opt, output_file, gtf):
+    print('Annotating {}...'.format(output_file))
     selected_pairs = pd.read_csv('{}.csv'.format(output_file), sep=',')
     # selected_pairs = pd.read_csv('rua.csv', sep=',')
 
