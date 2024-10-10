@@ -151,7 +151,7 @@ def load_vcf(opt):
     gzip_stream.close()
 
     if opt.sample not in vcf_column_index_map:
-        raise KeyError("sample {} not in vcf_column_index_map.keys(): {}".format(opt.sample, vcf_column_index_map.keys()))
+        raise KeyError('Sample {} not in vcf_column_index_map.keys(): {}.\n Please check if you have specified the correct sample name.'.format(opt.sample, vcf_column_index_map.keys()))
 
 
     # To restrict read-backed phasing to a given chr.
@@ -240,6 +240,9 @@ def generate_variants(opt, processed_vcf_path):
             else:
                 filtered_record_num += 1
                 continue
+    if total_record_num - filtered_record_num == 0:
+        raise AttributeError("No variants are taken from given VCF file.\n Please check if the inputed VCF file is not corrupted or the filtering threshold is resonable.")
+
     print('Received {} variants in total, {} variants taken, {} variants omitted.'.\
           format(total_record_num, total_record_num-filtered_record_num, filtered_record_num))
     
@@ -334,6 +337,9 @@ def generate_reads(opt, output_sam_paths):
             os.remove(output_sam_path)
 
         # Filter these reads by alignment score
+        if len(alignment_scores) == 0:
+            raise AttributeError("No reads are taken. Please check whether the BAM file is corrupted or input_type is correctly given.")
+            
         ALIGNMENT_FILTER = np.percentile(alignment_scores, opt.as_quality*100)
         for umi_barcode, lines in umibarcode_line_map.items():
             yield generate_read_from_bamline(umi_barcode=umi_barcode, bamline_list=lines)
