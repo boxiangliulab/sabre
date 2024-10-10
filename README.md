@@ -150,9 +150,9 @@ From left to right, each corresponding column represents umique_id, allele on on
 
 If you would like to output the phased vcf file, you can specify `--output_vcf`. For the output vcf, we added the following fields to phased variants.
 
-* **PG**: Sabre Local Genotype 
-* **PB**: Sabre Local Block
-* **PI**: Sabre Local Block Index (unique for each block)
+* **SG**: Sabre Local Genotype 
+* **SB**: Sabre Local Block
+* **SI**: Sabre Local Block Index (unique for each block)
 
 A typical output VCF file would be like:
 ```
@@ -256,6 +256,12 @@ To perform somatic variations analysis in the paper, you first need to specify `
 
 ### Performance Related Options
 * `--thread`: Number of thread number for multiprocessing. Default `8`. 
+
+### Sabre-somatic Options
+* `--id`: The ID of Sabre run.
+* `--threads`: Number of thread number for multiprocessing.
+* `--gtf`: Path to GTF file.
+* `--cds`: Decide whether only variants on the CDS region is considered.
 
  ## Citation
 
