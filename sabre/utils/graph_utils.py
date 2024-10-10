@@ -350,7 +350,7 @@ def graph_aggregation_and_update(opt, G:nx.Graph):
     '''
     # We first calculate weight sum of each node
     # nx.set_node_attributes(G, 0, 'popularity')
-    for L in opt.layers:
+    for L in range(opt.layers):
         for node in G.nodes:
             node_popularity = 0
             for neighbor_node in G.neighbors(node):
