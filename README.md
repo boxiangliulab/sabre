@@ -30,6 +30,7 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
     * [Accuracy & Sensitivity Related Options](#accuracy--sensitivity-related-options)
     * [Output Options](#output-options)
     * [Performance Related Options](#performance-related-options)
+    * [Sabre-somatic Options](#sabre-somatic-options)
 * [Citation](#citation)
 
  ## Overall Structure
@@ -38,7 +39,7 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
  ## Installation Instructions
 
  ### Install from bioconda (Recommended)
- Using anaconda can assure all the dependencies installed correctly. Sabre can be installed from the *bioconda* channel.
+ Using anaconda can assure all the dependencies installed correctly. Sabre can be installed from the `bioconda` channel.
  ```bash
  $ conda install sabre -c bioconda
  ```
@@ -244,7 +245,7 @@ To perform somatic variations analysis in the paper, you first need to specify `
 * `--remove_node`: Activate when `--shortest_path` is set. Remove no more than `remove_node` in split_graph_by_common_shortest_path()
 * `--as_quality`: A filter on alignment score in BAM files.
 * `--edge_threshold`: A filter on low confidence edges on graph.
-* `--layers`: Number of GNN layers. Default 1.
+* `--layers`: Number of GNN layers. Default 1. No GNN is applied if `--layers` is set to 0;
 
 ### Output Options
 * `--verbose`: Determine whether output conflicted graphs in pdf and graphml format.

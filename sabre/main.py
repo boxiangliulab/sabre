@@ -166,6 +166,13 @@ def main():
     opt.chr_vcf = opt.chr if opt.chr_vcf is None else opt.chr_vcf
     if opt.input_type == 're':
         assert opt.bc_re is not None and opt.umi_re is not None
+        try:
+            import re
+            re.compile(opt.bc_re)
+            re.compile(opt.umi_re)
+        except Exception as e:
+            print('Regular Expression compiling error. Please check the vadility of input re.')
+            raise e
 
     random.seed(opt.seed)
     np.random.seed(opt.seed)
@@ -175,7 +182,73 @@ def main():
     
     if not os.path.exists('./output/{}'.format(opt.id)):
         os.mkdir('./output/{}'.format(opt.id))
+    
+    if opt.vcf_qual < 0:
+        print('--vcf_qual must be set >= 0; Current value: {}'.format(opt.vcf_qual))
+        raise ValueError("--vcf_qual less than 0")
+
+    if opt.interval_threshold < 0:
+        print('--interval_threshold must be set >= 0; Current value: {}'.format(opt.interval_threshold))
+        raise ValueError("--interval_threshold less than 0")
+
+    if opt.mapq_threshold < 0:
+        print('--mapq_threshold must be set >= 0; Current value: {}'.format(opt.mapq_threshold))
+        raise ValueError("--mapq_threshold less than 0")
+
+    if opt.fiedler_threshold < 0:
+        print('--fiedler_threshold must be set >= 0; Current value: {}'.format(opt.fiedler_threshold))
+        raise ValueError("--fiedler_threshold less than 0")
+
+    if opt.as_quality < 0 or opt.as_quality >1:
+        print('--as_quality must be set >= 0 and <= 1; Current value: {}'.format(opt.as_quality))
+        raise ValueError("--as_quality less than 0 or greater than 1")
+
+    if opt.edge_threshold > 100:
+        print('--edge_threshold must be set >= 0; Current value: {}'.format(opt.edge_threshold))
+        raise ValueError("--edge_threshold greater than 100")
+
+    if opt.thread < 0:
+        print('--thread must be set >= 0; Current value: {}'.format(opt.thread))
+        raise ValueError("--thread less than 0")
+    
+    if opt.layers < 0:
+        print('--layers must be set >= 0; Current value: {}'.format(opt.layers))
+        raise ValueError("--layers less than 0")
+    # Perform pre-flight check
+
+    def perform_bam_check(bam):
+        if not os.path.exists(bam):
+            print('BAM file does not exists. Please check input arguments.')
+            raise RuntimeError('BAM file not exists')
         
+        if not os.path.exists('{}.bai'.format(bam)):
+            print('BAM file {} not indexed. Sabre requires each input BAM file indexed by samtools!'.format(bam))
+            raise KeyError('BAM file not indexed')
+
+    if not opt.bam == '':
+        perform_bam_check(opt.bam)
+  
+    if opt.bam == '':
+        with open(opt.bam_list) as f:
+            for line in f:
+                bamfile = line.split(',')[0]
+                try:
+                    perform_bam_check(bamfile)
+                except RuntimeError as e:
+                    print('BAM file {} does not exist. Please check input arguments'.format(bamfile))
+                    raise e
+                except KeyError as e:
+                    print('BAM file {} not indexed. Sabre needs each input BAM file indexed by samtools!'.format(bamfile))
+                    raise e
+    
+    if not os.path.exists(opt.vcf):
+        print('VCF file not exists. Please check input arguments.')
+        raise RuntimeError('VCF file not exists!')
+    
+    if not os.path.exists('{}.tbi'.format(opt.vcf)):
+        print('VCF file {} not indexed. Sabre requires input VCF file index by tabix'.format(opt.vcf))
+        raise RuntimeError('VCF file not indexed!')
+
     if opt.chr == 'all':
         from multiprocessing import Pool, Process, Manager
         import copy
