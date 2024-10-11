@@ -16,3 +16,5 @@ output
 \output\*.txt
 *.bak
 metric
+build/*
+sabre.egg-info/*

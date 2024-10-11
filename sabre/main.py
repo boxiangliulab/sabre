@@ -214,6 +214,11 @@ def main():
     if opt.layers < 0:
         print('--layers must be set >= 0; Current value: {}'.format(opt.layers))
         raise ValueError("--layers less than 0")
+    
+    if opt.chr == 'all' and opt.total_chr is None:
+        print('No chromosome is specified. Please check arguments.')
+        raise ValueError("No chromosome specified")
+
     # Perform pre-flight check
 
     def perform_bam_check(bam):
