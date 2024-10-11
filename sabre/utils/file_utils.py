@@ -243,7 +243,7 @@ def generate_variants(opt, processed_vcf_path):
     if total_record_num - filtered_record_num == 0:
         raise RuntimeError("No variants are taken from given VCF file.\n \t Please check if the inputed VCF file is not corrupted or the filtering threshold is resonable.")
 
-    print('Received {} variants in total, {} variants taken, {} variants omitted.'.\
+    print('[bold red blink]❌ ERROR: [/bold red blink]Received {} variants in total, {} variants taken, {} variants omitted.'.\
           format(total_record_num, total_record_num-filtered_record_num, filtered_record_num))
     
     os.remove(processed_vcf_path)

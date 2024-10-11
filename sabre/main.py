@@ -99,6 +99,7 @@ import time
 import os
 
 def watcher(chromosome_status_dict, status_list):
+    print('ruarua')
     os.system('clear')
     while True:
         res = ''
@@ -108,7 +109,7 @@ def watcher(chromosome_status_dict, status_list):
             res += '{} Status: [ {} ]'.format(chr_ + ' '*(6-len(chr_)), '✅' if status == 2 else ('⌛️' if status == 1 else ( '❌' if status == -1  else '😴')))
             res += '\t\t' if sep_count % 4 != 0 else '\n'
         print(res)
-        list(map(print, status_list))
+        list(map(lambda x: print('[bold red blink]❌ ERROR: [/bold red blink] {}'.format(x)), status_list))
         if 0 not in chromosome_status_dict.values() and 1 not in chromosome_status_dict.values():
             break
         time.sleep(0.5)
@@ -171,7 +172,7 @@ def main():
             re.compile(opt.bc_re)
             re.compile(opt.umi_re)
         except Exception as e:
-            print('Regular Expression compiling error. Please check the vadility of input re.')
+            print___('[bold red blink]❌ ERROR: [/bold red blink]Regular Expression compiling error. Please check the vadility of input re.')
             raise e
 
     random.seed(opt.seed)
@@ -184,50 +185,50 @@ def main():
         os.mkdir('./output/{}'.format(opt.id))
     
     if opt.vcf_qual < 0:
-        print('--vcf_qual must be set >= 0; Current value: {}'.format(opt.vcf_qual))
+        print___('[bold red blink]❌ ERROR: [/bold red blink]--vcf_qual must be set >= 0; Current value: {}'.format(opt.vcf_qual))
         raise ValueError("--vcf_qual less than 0")
 
     if opt.interval_threshold < 0:
-        print('--interval_threshold must be set >= 0; Current value: {}'.format(opt.interval_threshold))
+        print___('[bold red blink]❌ ERROR: [/bold red blink]--interval_threshold must be set >= 0; Current value: {}'.format(opt.interval_threshold))
         raise ValueError("--interval_threshold less than 0")
 
     if opt.mapq_threshold < 0:
-        print('--mapq_threshold must be set >= 0; Current value: {}'.format(opt.mapq_threshold))
+        print___('[bold red blink]❌ ERROR: [/bold red blink]--mapq_threshold must be set >= 0; Current value: {}'.format(opt.mapq_threshold))
         raise ValueError("--mapq_threshold less than 0")
 
     if opt.fiedler_threshold < 0:
-        print('--fiedler_threshold must be set >= 0; Current value: {}'.format(opt.fiedler_threshold))
+        print___('[bold red blink]❌ ERROR: [/bold red blink]--fiedler_threshold must be set >= 0; Current value: {}'.format(opt.fiedler_threshold))
         raise ValueError("--fiedler_threshold less than 0")
 
     if opt.as_quality < 0 or opt.as_quality >1:
-        print('--as_quality must be set >= 0 and <= 1; Current value: {}'.format(opt.as_quality))
+        print___('[bold red blink]❌ ERROR: [/bold red blink]--as_quality must be set >= 0 and <= 1; Current value: {}'.format(opt.as_quality))
         raise ValueError("--as_quality less than 0 or greater than 1")
 
     if opt.edge_threshold > 100:
-        print('--edge_threshold must be set >= 0; Current value: {}'.format(opt.edge_threshold))
+        print___('[bold red blink]❌ ERROR: [/bold red blink]--edge_threshold must be set >= 0; Current value: {}'.format(opt.edge_threshold))
         raise ValueError("--edge_threshold greater than 100")
 
     if opt.thread < 0:
-        print('--thread must be set >= 0; Current value: {}'.format(opt.thread))
+        print___('[bold red blink]❌ ERROR: [/bold red blink]--thread must be set >= 0; Current value: {}'.format(opt.thread))
         raise ValueError("--thread less than 0")
     
     if opt.layers < 0:
-        print('--layers must be set >= 0; Current value: {}'.format(opt.layers))
+        print___('[bold red blink]❌ ERROR: [/bold red blink]--layers must be set >= 0; Current value: {}'.format(opt.layers))
         raise ValueError("--layers less than 0")
     
     if opt.chr == 'all' and opt.total_chr is None:
-        print('No chromosome is specified. Please check arguments.')
+        print___('[bold red blink]❌ ERROR: [/bold red blink]No chromosome is specified. Please check arguments.')
         raise ValueError("No chromosome specified")
 
     # Perform pre-flight check
 
     def perform_bam_check(bam):
         if not os.path.exists(bam):
-            print('BAM file does not exists. Please check input arguments.')
+            print___('[bold red blink]❌ ERROR: [/bold red blink]BAM file does not exists. Please check input arguments.')
             raise RuntimeError('BAM file not exists')
         
         if not os.path.exists('{}.bai'.format(bam)):
-            print('BAM file {} not indexed. Sabre requires each input BAM file indexed by samtools!'.format(bam))
+            print___('[bold red blink]❌ ERROR: [/bold red blink]BAM file {} not indexed. Sabre requires each input BAM file indexed by samtools!'.format(bam))
             raise KeyError('BAM file not indexed')
 
     if not opt.bam == '':
@@ -240,18 +241,18 @@ def main():
                 try:
                     perform_bam_check(bamfile)
                 except RuntimeError as e:
-                    print('BAM file {} does not exist. Please check input arguments'.format(bamfile))
+                    print___('[bold red blink]❌ ERROR: [/bold red blink]BAM file {} does not exist. Please check input arguments'.format(bamfile))
                     raise e
                 except KeyError as e:
-                    print('BAM file {} not indexed. Sabre needs each input BAM file indexed by samtools!'.format(bamfile))
+                    print___('[bold red blink]❌ ERROR: [/bold red blink]BAM file {} not indexed. Sabre needs each input BAM file indexed by samtools!'.format(bamfile))
                     raise e
     
     if not os.path.exists(opt.vcf):
-        print('VCF file not exists. Please check input arguments.')
+        print___('[bold red blink]❌ ERROR: [/bold red blink]VCF file not exists. Please check input arguments.')
         raise RuntimeError('VCF file not exists!')
     
     if not os.path.exists('{}.tbi'.format(opt.vcf)):
-        print('VCF file {} not indexed. Sabre requires input VCF file index by tabix'.format(opt.vcf))
+        print___('[bold red blink]❌ ERROR: [/bold red blink]VCF file {} not indexed. Sabre requires input VCF file index by tabix'.format(opt.vcf))
         raise RuntimeError('VCF file not indexed!')
 
     if opt.chr == 'all':
@@ -266,6 +267,7 @@ def main():
             chromosome_status_dict = manager.dict()
             status_list = manager.list()
             return_list = manager.dict()
+            
             for idx in list(range(1, opt.total_chr+1))+ ['X']:
             # for idx in [19] + list(range(1, 19)) + list(range(20,23)):
                 chr_ = opt.chr_prefix+str(idx)
@@ -274,6 +276,7 @@ def main():
                 temp.chr = chr_
                 temp.chr_vcf = chr_
                 args.append((temp, chromosome_status_dict, return_list, status_list))
+                
             p = Process(target=watcher, args=(chromosome_status_dict, status_list))
             p.daemon = True
             p.start()
