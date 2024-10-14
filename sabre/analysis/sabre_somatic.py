@@ -143,7 +143,7 @@ def examine_in_phase(opt, lbd):
     in_phase_output.close()
 
 
-def check_out_of_phase_graph(graphs, graph_path, output_list, lbd, progress_list, thread_id):
+def check_out_of_phase_graph(graphs, graph_path, output_list, rawlink_list, lbd, progress_list, thread_id):
     total_graphs_nums = len(graphs)
     
     for graph in graphs:
@@ -193,6 +193,17 @@ def check_out_of_phase_graph(graphs, graph_path, output_list, lbd, progress_list
                     _01_cell_raw_count = G.edges[node_1_0, node_2_1]['raw_read_count'] if (node_1_0, node_2_1) in G.edges else -1
                     _10_cell_raw_count = G.edges[node_1_1, node_2_0]['raw_read_count'] if (node_1_1, node_2_0) in G.edges else -1
 
+                    if rawlink_list is not None:
+                        if (node_1_0, node_2_0) in G.edges:
+                            for barcode in G.edges[node_1_0, node_2_0]['barcodes'].keys():
+                                rawlink_list.append('{}\t{}\t{}\n'.format(barcode, node_1_0, node_2_0))
+                        if (node_1_1, node_2_0) in G.edges:
+                            for barcode in G.edges[node_1_1, node_2_0]['barcodes'].keys():
+                                rawlink_list.append('{}\t{}\t{}\n'.format(barcode, node_1_1, node_2_0))
+                        if (node_1_0, node_2_1) in G.edges:
+                            for barcode in G.edges[node_1_0, node_2_1]['barcodes'].keys():
+                                rawlink_list.append('{}\t{}\t{}\n'.format(barcode, node_1_0, node_2_1))
+
                     output_list.append('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(lbd, graph, var1, var2, _00_cell_prime_weight, _01_cell_prime_weight, _10_cell_prime_weight,\
                                                                                     _00_cell_count, _01_cell_count, _10_cell_count, _00_cell_raw_count, _01_cell_raw_count, _10_cell_raw_count, \
                                                                                     G.nodes[var1+':0']['allele_read_count'], G.nodes[var1+':1']['allele_read_count'], G.nodes[var2+':0']['allele_read_count'], G.nodes[var2+':1']['allele_read_count']))
@@ -214,11 +225,12 @@ def examine_out_of_phase(opt, lbd):
 
     with multiprocessing.Manager() as manager:
         output_list = manager.list()
+        rawlink_list = manager.list() if opt.rawlink else None
         progress_list = manager.list(([0] * (opt.threads-1)))
         
         processes = []
         for i in range(opt.threads):
-            p = multiprocessing.Process(target=check_out_of_phase_graph, args=(graphs[i::opt.threads-1], graph_path, output_list, lbd, progress_list, i)) if i != opt.threads-1 else multiprocessing.Process(target=update_progress_bars, args=(progress_list, total_iterations, opt.threads-1))
+            p = multiprocessing.Process(target=check_out_of_phase_graph, args=(graphs[i::opt.threads-1], graph_path, output_list, rawlink_list, lbd, progress_list, i)) if i != opt.threads-1 else multiprocessing.Process(target=update_progress_bars, args=(progress_list, total_iterations, opt.threads-1))
             p.deamon = True if i == opt.threads-1 else False
             processes.append(p)
             p.start()
@@ -230,6 +242,9 @@ def examine_out_of_phase(opt, lbd):
         processes[-1].kill()
 
         list(map(out_of_phase_output.write, set(output_list)))
+        if rawlink_list is not None:
+            with open('./{}.out.of.phase.hits.raw.linkage.txt'.format(lbd), 'w') as f:
+                list(map(f.write, rawlink_list))
 
     out_of_phase_output.close()
 
@@ -326,6 +341,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--id", help="Input ID", required=True)
     parser.add_argument("--threads", help="Multithread number", type=int, default=1)
+    parser.add_argument("--rawlink", help="Output raw linkage per cell per variant pair", action='store_true')
     parser.add_argument("--gtf", help="Input GTF file", required=True)
     parser.add_argument("--cds", help="If specified, only mutations on CDS will be phased.", action='store_true')
     opt = parser.parse_args()
