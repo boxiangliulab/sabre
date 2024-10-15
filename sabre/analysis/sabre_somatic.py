@@ -355,6 +355,9 @@ def annotate(opt, output_file, gtf):
     # genes = list(filter(lambda x:'IG' not in x, genes))
     list(map(lambda x: print(x, end=' '), genes))
 
+    with open('./{}.genes.list'.format(output_file), 'w') as f:
+        list(map(lambda x: f.write('{} '.format(x)), genes))
+
     def find_corresponding_gene(group):
         var1 = group['Var1'][:group['Var1'].index('_.')]
         if var1 not in pos_gene_map: return False
