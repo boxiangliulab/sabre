@@ -68,7 +68,7 @@ def read_var_map(opt, reads, variants):
         alleles = []
         for var in mapped_variants:
             # get the base pair of given read
-            allele = file_utils.get_base_pair_by_var_pos(read, var.end)
+            allele = file_utils.get_base_pair_by_var_pos(opt, read, var.end)
             # if the allele=='.', means the loci is deleted/introns or simply with low confidence.
             # we thus consider this var is not on the read.
             if allele == None:

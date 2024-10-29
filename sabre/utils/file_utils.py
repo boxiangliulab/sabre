@@ -15,6 +15,38 @@ ALIGNMENT_FILTER = 0
 Variant = namedtuple('Variant', ["unique_id", "end", "genotype_string", "is_phased"])
 Bamline = namedtuple('Bamline', ['col_pos', 'col_seq', 'col_qual', 'col_cigar', 'alignment_score'])
 
+class sabre_regex:
+    def __init__(self, re_type, bc_re, umi_re):
+        
+        self.re_type = re_type
+        if re_type == 're':
+            bc_re = re.compile(bc_re)
+            umi_re = re.compile(umi_re)
+        elif re_type == 'umitools':
+            bc_re = re.compile('^.*_([ATCGN]+)_[ATCGN]+')
+            umi_re = re.compile('^.*_[ATCGN]+_([ATCGN]+)')
+        elif re_type == 'star':
+            bc_re = re.compile('^([ATCGN]+)_[ATCGN]+_')
+            umi_re = re.compile('^[ATCGN]+_([ATCGN]+)')
+        elif re_type == 'cellranger':
+            bc_re = re.compile('CB:Z:([ATCGN]+)')
+            umi_re = re.compile('UB:Z:([ATCGN]+)')
+        elif re_type not in ['bulk', 'smartseq']:
+            raise ValueError("Invalid re_type specified.")
+        
+        self.bc_counter = 0
+        self.umi_counter = 0
+
+        if re_type == 'bulk':
+            self.find_bc = lambda x: [x.strip().split('\t')[0]]
+            self.find_umi = lambda x: [x.strip().split('\t')[0]]
+        elif re_type == 'smartseq':
+            self.find_bc = lambda x: ['pseudobc']
+            self.find_umi = lambda x: ['pseudoumi']
+        elif re_type in ['re', 'umitools', 'star', 'cellranger']:
+            self.find_bc = bc_re.findall
+            self.find_umi = umi_re.findall
+
 def create_variant(sep, col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased) -> None:
     unique_id = sep.join([col_chr, col_pos, col_id, col_ref, col_alt])
     return Variant(unique_id=unique_id, end=int(col_pos), genotype_string=genotype_string, is_phased=is_phased)
@@ -97,7 +129,7 @@ def adjust_read_seq(line):
     return tuple(adjusted_read_seq), tuple(adjusted_qual_seq), tuple(spans)
     
 
-def get_base_pair_by_var_pos(read, var_pos):
+def get_base_pair_by_var_pos(opt, read, var_pos):
     '''
     Given a variant position on genome, return the corresponding base pair on the read.
     '''
@@ -120,7 +152,7 @@ def get_base_pair_by_var_pos(read, var_pos):
         pros = sum(list(map(lambda x: -(ord(x)-33)/10, list(bp_qual_map.values())[0])))
         cons = sum(list(map(lambda x: -(ord(x)-33)/10, list(bp_qual_map.values())[1])))
         leading_bp = [list(bp_qual_map.keys())[0] for i in range(len(list(bp_qual_map.values())[0]))] if pros < cons else [list(bp_qual_map.keys())[1] for i in range(len(list(bp_qual_map.values())[1]))]
-        if 10 ** -abs(pros-cons) < 0.05:
+        if 10 ** -abs(pros-cons) < opt.base_conflict_threshold:
             return leading_bp
     return None
 
@@ -293,9 +325,7 @@ def generate_reads(opt, output_sam_paths):
     global QUAL_THRESHOLD, ALIGNMENT_FILTER
     QUAL_THRESHOLD = 10
 
-    if opt.input_type == 're':
-        bc_re = re.compile(opt.bc_re)
-        umi_re = re.compile(opt.umi_re)
+    find_bc_umi = sabre_regex(opt.input_type, opt.bc_re, opt.umi_re)
 
     for output_sam_path, name in output_sam_paths:
         with open(output_sam_path) as sam_file:
@@ -304,32 +334,15 @@ def generate_reads(opt, output_sam_paths):
                 col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq, col_qual = columns[:11]
                 other_columns = columns[11:]
                 alignment_score = -100
-                col_umi, col_barcode = None, None
+
                 for col in other_columns:
                     if col.startswith('AS'):
                         alignment_score = int(col.split(':')[-1])
-                    # umi
-                    elif col.startswith('UB'):
-                        col_umi = col.split(':')[-1]
-                    # barcode
-                    elif col.startswith('CB'):
-                        col_barcode = col.split(':')[-1]
+                        break
+                
                 bamline = Bamline(col_pos, col_seq, col_qual, col_cigar, alignment_score)
-                if opt.input_type == 'cellranger':
-                    if col_umi is None or col_barcode is None:
-                        continue
-                    else:
-                        barcode, umi = col_barcode, col_umi
-                elif opt.input_type == 'umitools':
-                    # SRR8551677.318476227_CTAATGGAGACTAAGT_TCCAGACCGG
-                    _, barcode, umi = col_qname.split('_')
-                elif opt.input_type == 'star':
-                    # AGATGTACTATCAGCAACATTGGC_GTGAGGACTT_AAAAAEEEEE_SRR6750053.36514992
-                    barcode, umi = col_qname.split('_')[:2]
-                elif opt.input_type == 're':
-                    barcode, umi = bc_re.findall(line)[0], umi_re.findall(line)[0]
+                barcode, umi = find_bc_umi.find_bc(line)[0], find_bc_umi.find_umi(line)[0]
                     
-                # barcode, umi = str(bamline_cnt), str(bamline_cnt)
                 umi_barcode = '.'.join([umi, barcode]) + '_{}'.format(name)
                 umibarcode_line_map[umi_barcode].append(bamline)
                 bamline_cnt += 1
@@ -340,7 +353,7 @@ def generate_reads(opt, output_sam_paths):
         if len(alignment_scores) == 0:
             raise RuntimeError("No reads are taken. Please check whether the BAM file is corrupted or input_type is correctly given.")
 
-        ALIGNMENT_FILTER = np.percentile(alignment_scores, opt.as_quality*100)
+        ALIGNMENT_FILTER = np.percentile(alignment_scores, opt.as_quality*100) if opt.as_quality > 0 else 0
         for umi_barcode, lines in umibarcode_line_map.items():
             yield generate_read_from_bamline(umi_barcode=umi_barcode, bamline_list=lines)
 

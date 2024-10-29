@@ -99,7 +99,6 @@ import time
 import os
 
 def watcher(chromosome_status_dict, status_list):
-    print('ruarua')
     os.system('clear')
     while True:
         res = ''
@@ -132,6 +131,7 @@ def main():
     parser.add_argument("--var_format", help="How variants are determined", default='vcf', choices=['vcf','npy'])
     parser.add_argument("--vcf_qual", help="The quality threshold on QUAL during processing vcf files.", default=30, type=int)
     parser.add_argument("--interval_threshold", help="Alleles with interval more than this threshold will be considered disconnected.", type=int, default=5000)
+    parser.add_argument("--base_conflict_threshold", help="Base pairs that diffs less than this threshold will be ignored.", type=float, default=0.05)
     parser.add_argument("--method", help="Split method, e.g. mincut, fiedler", default='fiedler')
     parser.add_argument("--sep", help="Character used to construct split variant information", type=str, default='_')
     parser.add_argument("--non_binary_variant", help="If set, means there may be multipul ALT. for a single variant", action='store_true')
