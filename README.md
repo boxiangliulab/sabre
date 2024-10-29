@@ -243,6 +243,7 @@ To perform somatic variations analysis in the paper, you first need to specify `
 * `--mapq_threshold`: Threshold on minimum MAPQ value for input BAM. Reads with MAPQ lower than this value will be ignored.
 * `--vcf_qual`: The quality threshold on QUAL during processing raw input VCF file.
 * `--interval_threshold`: Edge with allele distance on genome more than this threshold will be ignored. 
+* `--base_conflict_threshold`: Determine whether different bp at the same position will be persisted. 
 * `--method`: Specify graph split method, e.g. mincut, fiedler.
 * `--fiedler_threshold`: Nodes with corresponding value in fiedler vector lower than threshold will be removed
 * `--shortest_path`: Decide whether activate split_graph_by_common_shortest_path..
