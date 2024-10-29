@@ -138,7 +138,7 @@ def main():
     parser.add_argument("--chr_vcf", help="To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF",default=None, type=str)
     parser.add_argument("--neglect_hla", help="Indicate whether neglect variants in HLA region", action='store_true')
     parser.add_argument("--black_list", help="A blacklist, not implemented yet",default=None, type=str)
-    parser.add_argument("--mapq_threshold", '--mapq', help="A filter on bam file. Reads have mapq lower than this threshold will be omitted.",default=60, type=str)
+    parser.add_argument("--mapq_threshold", '--mapq', help="A filter on bam file. Reads have mapq lower than this threshold will be omitted.",default=60, type=int)
     parser.add_argument("--fiedler_threshold", help="Nodes with corresponding value in fiedler vector lower than threshold will be removed",default=1e-2, type=float)
     parser.add_argument("--remove_node", help="Remove no more than $remove_node$ in split_graph_by_common_shortest_path",default='auto', type=str)
     parser.add_argument("--shortest_path", help="Decide whether activate split_graph_by_common_shortest_path.", action='store_true')

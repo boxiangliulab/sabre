@@ -23,11 +23,11 @@ class sabre_regex:
             bc_re = re.compile(bc_re)
             umi_re = re.compile(umi_re)
         elif re_type == 'umitools':
-            bc_re = re.compile('^.*_([ATCGN]+)_[ATCGN]+')
-            umi_re = re.compile('^.*_[ATCGN]+_([ATCGN]+)')
+            bc_re = re.compile('_([ATCGN]+?)_[ATCGN]+')
+            umi_re = re.compile('_[ATCGN]+?_([ATCGN]+)')
         elif re_type == 'star':
-            bc_re = re.compile('^([ATCGN]+)_[ATCGN]+_')
-            umi_re = re.compile('^[ATCGN]+_([ATCGN]+)')
+            bc_re = re.compile('^([ATCGN]+?)_[ATCGN]+_')
+            umi_re = re.compile('^[ATCGN]+?_([ATCGN]+)')
         elif re_type == 'cellranger':
             bc_re = re.compile('CB:Z:([ATCGN]+)')
             umi_re = re.compile('UB:Z:([ATCGN]+)')
@@ -307,7 +307,7 @@ def load_bam(opt, bed_file):
         output_sam_paths.append([bam_out.name, name])
 
         # We don't need headers...for now.
-        command = "samtools view {} '{}' -F 0x400 -@ 6 -q {} -L {} > {}".format(bam_file, opt.chr, opt.mapq_threshold, bed_file, bam_out.name)
+        command = "samtools view {} '{}' -F 0x400 -@ {} -q {} -L {} > {}".format(bam_file, opt.chr, opt.thread, opt.mapq_threshold, bed_file, bam_out.name)
         err_code = subprocess.check_call("set -euo pipefail && "+command, shell=True, executable='/bin/bash')
 
     os.remove(bed_file)
