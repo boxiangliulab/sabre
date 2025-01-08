@@ -29,8 +29,8 @@ class sabre_regex:
             bc_re = re.compile('^([ATCGN]+?)_[ATCGN]+_')
             umi_re = re.compile('^[ATCGN]+?_([ATCGN]+)')
         elif re_type == 'cellranger':
-            bc_re = re.compile('CB:Z:([ATCGN]+)')
-            umi_re = re.compile('UB:Z:([ATCGN]+)')
+            bc_re = re.compile('CB:Z:([ATCGN]+[-1]*)')
+            umi_re = re.compile('UB:Z:([ATCGN]+[-1]*)')
         elif re_type not in ['bulk', 'smartseq']:
             raise ValueError("Invalid re_type specified.")
         
@@ -44,8 +44,8 @@ class sabre_regex:
             self.find_bc = lambda x: ['pseudobc']
             self.find_umi = lambda x: ['pseudoumi']
         elif re_type in ['re', 'umitools', 'star', 'cellranger']:
-            self.find_bc = bc_re.findall
-            self.find_umi = umi_re.findall
+            self.find_bc = bc_re.search
+            self.find_umi = umi_re.search
 
 def create_variant(sep, col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased) -> None:
     unique_id = sep.join([col_chr, col_pos, col_id, col_ref, col_alt])
@@ -341,7 +341,12 @@ def generate_reads(opt, output_sam_paths):
                         break
                 
                 bamline = Bamline(col_pos, col_seq, col_qual, col_cigar, alignment_score)
-                barcode, umi = find_bc_umi.find_bc(line)[0], find_bc_umi.find_umi(line)[0]
+                barcode, umi = find_bc_umi.find_bc(line), find_bc_umi.find_umi(line)
+                if barcode is not None and umi is not None:
+                    barcode = barcode.group(1)
+                    umi = umi.group(1)
+                else:
+                    continue
                     
                 umi_barcode = '.'.join([umi, barcode]) + '_{}'.format(name)
                 umibarcode_line_map[umi_barcode].append(bamline)
