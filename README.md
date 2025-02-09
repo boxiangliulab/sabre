@@ -68,10 +68,10 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
 
  ```bash
  # On all Chromosomes
-$ sabre --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME> --total_chr <number-of-chrs-without-chrX> --input_type <cellranger/umitools/re> 
+$ sabre --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME> --total_chr <number-of-chrs-without-chrX> --input_type <cellranger/umitools/star> 
 
  # On one Chromosome
-$ sabre --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME> --chr <desired_chr> --input_type <cellranger/umitools/re> 
+$ sabre --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME> --chr <desired_chr> --input_type <cellranger/umitools/star> 
  ```
 
  ### Sabre for scRNA-seq phasing
