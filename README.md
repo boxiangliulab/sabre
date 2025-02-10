@@ -89,7 +89,7 @@ We highly recommend you to check your environment setup using the provided examp
 Run command
 ```Bash
 $ cd /path/to/sabre
-$ sabre --id test --bam ./example/bam/NA12878.chr1.example.bam --vcf ./example/vcf/NA12878.example.vcf.gz --sample NA12878 --chr chr1 --input_type umitools 
+$ sabre --id test --bam ./example/bam/NA12878.chr5.example.bam --vcf ./example/vcf/NA12878.example.vcf.gz --sample NA12878 --chr chr5 --input_type umitools 
 ```
 If everything was set up right, this command should run with out any error.
 
