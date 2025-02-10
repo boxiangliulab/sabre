@@ -1,4 +1,7 @@
+![alt Sabre logo](./doc/sabre.logo.png)
+
 # Sabre - Single-cell reAd-Backed umi-awaRE phasing
+
 
 ## What is Sabre
 
