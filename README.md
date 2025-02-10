@@ -199,6 +199,8 @@ And to perform **in-phase** and **out-of-phase** detection, run the following co
 # For somatic variation analysis
 $ sabre-somatic --id <id> --gtf <path-to-gtf>
 ```
+An example GTF file could be downloaded here: https://www.gencodegenes.org/human/
+
 The script will generate two outputs: 
 * in.phase.hits.annotated.csv
 * out.of.phase.hits.annotated.csv
