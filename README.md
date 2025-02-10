@@ -286,7 +286,7 @@ To perform somatic variations analysis in the paper, you first need to specify `
 * `--id`: The ID of Sabre run.
 * `--output_dir`: The same `--output_dir` as sabre.
 * `--threads`: Number of thread number for multiprocessing.
-* `--gtf`: Path to GTF file.
+* `--gtf`: Input GTF file. We recommend you to input a .gtf file rather than a .gtf.gz file, because sabre-somatic will have to depress the file everytime you input a compressed gtf file, which will result in a waste of time and disk space.
 * `--cds`: Decide whether only variants on the CDS region is considered.
 
  ## Citation

@@ -329,10 +329,17 @@ def annotate(opt, output_file, gtf):
         list(map(lambda x:f.write('{}\t{}\t{}\n'.format(x.split('_')[0], x.split('_')[1], int(x.split('_')[1])+1)), vars_))
 
     import subprocess
-    if opt.cds:
-        cmd = 'bedtools intersect -a sites.bed -b {} -wa -wb > annotated_sites.bed | egrep "CDS"'.format(gtf)
+
+    if gtf.endswith('.gtf.gz'):
+        cmd = f'zcat {gtf} > {gtf[gtf.index('.gz')]}'
+        gtf_for_bedtools = gtf[gtf.index('.gz')]
     else:
-        cmd = 'bedtools intersect -a sites.bed -b {} -wa -wb > annotated_sites.bed'.format(gtf)
+        gtf_for_bedtools = gtf
+
+    if opt.cds:
+        cmd = 'bedtools intersect -a sites.bed -b {} -wa -wb > annotated_sites.bed | egrep "CDS"'.format(gtf_for_bedtools)
+    else:
+        cmd = 'bedtools intersect -a sites.bed -b {} -wa -wb > annotated_sites.bed'.format(gtf_for_bedtools)
     subprocess.check_call(cmd, shell=True)
 
     import re
@@ -370,7 +377,7 @@ def main():
     parser.add_argument("--output_dir", help="Path to output directory, should be the same as sabre --output_dir. Default ./output", required=False, default='./output')
     parser.add_argument("--threads", help="Multithread number", type=int, default=1)
     parser.add_argument("--rawlink", help="Output raw linkage per cell per variant pair", action='store_true')
-    parser.add_argument("--gtf", help="Input GTF file", required=True)
+    parser.add_argument("--gtf", help="Input GTF file. We recommend you to input a .gtf file rather than a .gtf.gz file, because sabre-somatic will have to depress the .gtf.gz file everytime you input a compressed gtf file.", required=True)
     parser.add_argument("--cds", help="If specified, only mutations on CDS will be phased.", action='store_true')
     opt = parser.parse_args()
 
@@ -382,10 +389,7 @@ def main():
         raise ValueError("Thread number cannot be less than 1!")
     
     if not opt.gtf.endswith('.gtf'):
-        if opt.gtf.endswith('.gtf.gz'):
-            raise ValueError("sabre-somatic only takes gtf file rather than .gtf.gz file. Please unzip your gtf file by\n\t wcat {} > {}.".format(opt.gtf, opt.gtf[:opt.gtf.index(".gz")]))
-        else:
-            raise ValueError("Invalid argument for --gtf. Please give a valid .gtf file.")
+        raise ValueError("Invalid argument for --gtf. Please give a valid .gtf file or .gtf.gz file.")
     
     if not os.path.exists(opt.gtf):
         raise ValueError("File not found: {}. Please check input argument --gtf".format(opt.gtf))
