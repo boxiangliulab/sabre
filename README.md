@@ -82,6 +82,17 @@ $ sabre --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME>
 
 Requires a VCF and BAM, produces a HAPCUT-style output and a phased VCF with computed haplotype phases and result files containing haplotype details, graph connectivities, and read counts. 
 
+**Example input**
+----
+We highly recommend you to check your environment setup using the provided example data under `example/` directory.
+
+Run command
+```Bash
+$ cd /path/to/sabre
+$ sabre --id test --bam ./example/bam/NA12878.chr1.example.bam --vcf ./example/vcf/NA12878.example.vcf.gz --sample NA12878 --chr chr1 --input_type umitools 
+```
+If everything was set up right, this command should run with out any error.
+
 **BAM input**
 ----
  
