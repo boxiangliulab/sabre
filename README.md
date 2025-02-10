@@ -68,10 +68,10 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
 
  ```bash
  # On all Chromosomes
-$ sabre --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME> --total_chr <number-of-chrs-without-chrX> --input_type <cellranger/umitools/re> 
+$ sabre --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME> --total_chr <number-of-chrs-without-chrX> --input_type <cellranger/umitools/star/re> 
 
  # On one Chromosome
-$ sabre --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME> --chr <desired_chr> --input_type <cellranger/umitools/re> 
+$ sabre --id <ID> --bam <path-to-bam> --vcf <path-to-vcf> --sample <SAMPLE_NAME> --chr <desired_chr> --input_type <cellranger/umitools/star/re> 
  ```
 
  ### Sabre for scRNA-seq phasing
@@ -127,7 +127,9 @@ We applied multiple threshold on the BAM file to achieve balance between precisi
 
 Variants pending for phasing are given by VCF files. By providing VCF files using `--vcf`, you should provide the desired sample name in the VCF file with `--sample`.
 
-If there is no ground truth VCF files, nor there is no existing VCF file for an individual. In other words, you only have the bam file. Worry not! You can call variants on your own by 
+Sometimes there are no ground truth VCF files, nor is there an existing VCF file for an individual. In other words, you only have the scRNA-seq bam file. Worry not! You can call variants on your own using the following command. Note that `samtools` and `bcftools` are not optimized for single-cell data. Consider using `Monopogen` [link](https://github.com/KChen-lab/Monopogen), which designed for scRNA-seq data.   
+
+
 ```bash
 $ samtools index <path-to-bam>
 $ bcftools mpileup -Ou -f <path-to-genome.fa> <path-to-bam> | bcftools call -mv -Ob -o tmp.bcf
@@ -135,7 +137,7 @@ $ bcftools view tmp.bcf -o tmp.vcf
 $ bgzip -c tmp.vcf > <your-desired-name>.vcf.gz
 $ tabix -p vcf <your-desired-name>.vcf.gz
 ```
-You can perform further filtering on this VCF file or simply indicating `--raw_vcf` and `--vcf_qual <threshold-on-vcf-QUAL>` when using Sabre.
+You can perform further filtering on this VCF file or simply indicate `--raw_vcf` and `--vcf_qual <threshold-on-vcf-QUAL>` when using Sabre.
 
 Sometimes, the input chromosome may contain the **"_"** character, e.g. mm10_1. To prevent errors, you need to specify `--sep <any-character-you-like-except-from-_-and-:>`. And in other circumstances, the naming style of given BAM file and VCF file may be different. You can use `--chr_vcf <chr-on-VCF-file>` to specify the desired chromosome in the VCF file.
 
@@ -197,6 +199,8 @@ And to perform **in-phase** and **out-of-phase** detection, run the following co
 # For somatic variation analysis
 $ sabre-somatic --id <id> --gtf <path-to-gtf>
 ```
+An example GTF file could be downloaded here: https://www.gencodegenes.org/human/
+
 The script will generate two outputs: 
 * in.phase.hits.annotated.csv
 * out.of.phase.hits.annotated.csv
