@@ -127,7 +127,7 @@ We applied multiple threshold on the BAM file to achieve balance between precisi
 
 Variants pending for phasing are given by VCF files. By providing VCF files using `--vcf`, you should provide the desired sample name in the VCF file with `--sample`.
 
-Sometimes there are no ground truth VCF files, nor is there an existing VCF file for an individual. In other words, you only have the scRNA-seq bam file. Worry not! You can call variants on your own using the following command. Note that `samtools` and `bcftools` are not optimized for single-cell data. Consider using `Monopogen` [link](https://github.com/KChen-lab/Monopogen), which designed for scRNA-seq data.   
+Sometimes there are no ground truth VCF files, nor is there an existing VCF file for an individual. In other words, you only have the scRNA-seq bam file. Worry not! You can call variants on your own using the following command. Note that `samtools` and `bcftools` are not optimized for single-cell data. Consider using [Monopogen](https://github.com/KChen-lab/Monopogen), which designed for scRNA-seq data.   
 
 
 ```bash
@@ -169,7 +169,7 @@ chr1    1023789 .       G       C       0       PASS    KM=9.61;KFP=0;KFF=0;MTD=
 ...
 ```
 
-If the output of the ALG and the edge information of it is required, specify `--allele_linkage`. The output of edge linkage information between variants of each cell is outputed in `./output/<id>/cell_allele_connections_chr*.txt`. The typical content of the output file is 
+If the output of the ALG and the edge information of it is required, specify `--allele_linkage`. The output of edge linkage information between variants of each cell is outputed in `<output_dir>/<id>/cell_allele_connections_chr*.txt`. The typical content of the output file is 
 
 ```
 barcode var     geno    support
@@ -179,7 +179,7 @@ ACTTACTGTTCCTCCA        chr22_16614653_._C_T,chr22_16614872_._A_T       00      
 ...
 ```
 
-To enable residual graph output, specify `--singular`. The results are stored in `./output/<id>/singular_cells/singular_cell_linkage_*.txt`. The typical content would be like
+To enable residual graph output, specify `--residual_edges`. The results are stored in `<output_dir>/<id>/singular_cells/singular_cell_linkage_*.txt`. The typical content would be like
 ```
 barcode var     geno    support p-value oppo_support    total_covered_barcodes  global_oppo_support     correct is_singular
 CCATTCGCAGGATTGG        chr15_22690417_._A_G,chr15_22690362_._A_G       01      1       0.8607110296641832      0       7       5       1       0
@@ -199,20 +199,20 @@ And to perform **in-phase** and **out-of-phase** detection, run the following co
 # For somatic variation analysis
 $ sabre-somatic --id <id> --gtf <path-to-gtf>
 ```
-An example GTF file could be downloaded here: https://www.gencodegenes.org/human/
+An example GTF file could be downloaded here: https://www.gencodegenes.org/human/. Notablly, the downloaded `gtf.gz` file shall be decompressed to `gtf` file for `sabre-somatic`.
 
 The script will generate two outputs: 
 * in.phase.hits.annotated.csv
 * out.of.phase.hits.annotated.csv
 
 A typical example of output is
-```Bash
+```tsv
 #out.of.phase.hits.annotated.csv
 Sample	Var1	Var2	00	01	10	00_cell	01_cell	10_cell	00_raw_count	01_raw_count	10_raw_count	Var1:0	Var1:1	Var2:0	Var2:1	inherit_ratio	somatic_ratio	minor_freq	reads_sum	raw_reads_count_sum	gene
 Sample1	chr12_10435855_._A_G	chr12_10435982_._T_C	3	70	14	3	24	13	3	74	14	383	167	186	310	0.125	0.5416667	3	87	91	KLRC2
 Sample2	chr12_10435931_._C_G	chr12_10435982_._T_C	21	87	63	20	26	34	52	95	206	478	211	186	310	0.5882352941176471	0.7647059	20	171	353	KLRC2
 ```
-where each line represents a in/out-of-phase variant pair, `00/01/10` represents mRNA count of corresponding variant configuration, and `00/01/10_cell` represents the cell number count. `00/01/10_raw_count` reprensents corresponding read count in the BAM file. `Var0/1:0/1` represents the read depth of each allele.
+where each line represents a in/out-of-phase variant pair, `00/01/10` represents mRNA count of corresponding variant configuration, and `00/01/10_cell` represents the cell number count. `00/01/10_raw_count` reprensents corresponding read count in the BAM file. `Var0/1:0/1` represents the deduplicated read depth of each allele.
 
 You should perform further custom filtering to get reliable analysis results.
 
@@ -224,7 +224,7 @@ To perform somatic variations analysis in the paper, you first need to specify `
  ## Options
 
 ### General Options
-* `--id`: A unique run ID string (e.g. sample345).
+* `--id`: A unique run ID string (e.g. NA12878).
 * `--bam`: Indexed BAM file containing aligned reads.
 * `--bam_list`: A list of input BAM files.
 * `--vcf`: Input VCF file, must be gzipped and tabix indexed.
@@ -237,11 +237,12 @@ To perform somatic variations analysis in the paper, you first need to specify `
 * `--chr_prefix`: Chromosome prefix. Default `chr`.  
 * `--chr_vcf`: To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF
 * `--neglect_hla`: If set, variants in the HLA region is neglected.
-* `--seed`: Random seed 
+* `--seed`: Random seed.
 * `--tmp_dir`: Directory of tempfile.
-* `--input_type`: How umi-barcode is provided, e.g. cellranger-style, umitools-style or 're' for custom regular expression..
-* `--bc_re`: The regular expression for extracting Cell Barcode in the BAM file..
-* `--umi_re`: The regular expression for extracting UMI in the BAM file..
+* `--output_dir`: Path to output directory. Output of sabre will be stored in `<output_dir>/<id>`
+* `--input_type`: How umi-barcode is provided, e.g. cellranger-style, umitools-style or 're' for custom regular expression.
+* `--bc_re`: The regular expression for extracting Cell Barcode in the BAM file.
+* `--umi_re`: The regular expression for extracting UMI in the BAM file.
 
 ### Accuracy & Sensitivity Related Options
 * `--mapq_threshold`: Threshold on minimum MAPQ value for input BAM. Reads with MAPQ lower than this value will be ignored.
@@ -259,8 +260,8 @@ To perform somatic variations analysis in the paper, you first need to specify `
 ### Output Options
 * `--verbose`: Determine whether output conflicted graphs in pdf and graphml format.
 * `--benchmark`: Determine wheter output benchmark information.
-* `--output_conflict`: Decide whether to output conflict graphs.
-* `--singular`: Decide whether perform singular cell detection.
+* `--output_conflict`: Decide whether to output conflict graphs. This is a must if you want to use `sabre-somatic` for further somatic mutation analysis.
+* `--residual_edge`: Decide whether to output residual edges (edges that are removed when resolving graph conflicts).
 * `--allele_linkage`: Decide whether output allele linkage count.
 * `--output_vcf`: Decide whether output vcf or not (severe performance decrease).
 
@@ -269,6 +270,7 @@ To perform somatic variations analysis in the paper, you first need to specify `
 
 ### Sabre-somatic Options
 * `--id`: The ID of Sabre run.
+* `--output_dir`: The same `--output_dir` as sabre.
 * `--threads`: Number of thread number for multiprocessing.
 * `--gtf`: Path to GTF file.
 * `--cds`: Decide whether only variants on the CDS region is considered.

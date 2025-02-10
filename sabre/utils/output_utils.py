@@ -108,7 +108,7 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
     variant_hap_map = {}
     variant_phase_map = {}
 
-    with open('./output/{}/{}.output.SABRE'.format(opt.id, opt.chr), 'w') as g:
+    with open('{}/{}/{}.output.SABRE'.format(opt.output_dir, opt.id, opt.chr), 'w') as g:
         for nodes in final_haplotypes:
             # var_phasing_list: [(chr1_147242777_._G_C, 1), ...]
             var_phasing_list = list(map(lambda x: x.split(':'), nodes))
@@ -184,7 +184,7 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
 
 
 
-def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx.Graph, allele_linkage_graph:nx.Graph, vid_var_map, mean, var, n):
+def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx.Graph, allele_linkage_graph:nx.Graph, vid_var_map, variant_allele_map, mean, var, n):
     '''
     Report removed edges during resolving confliced graphs.
     '''
@@ -198,7 +198,7 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
         calculated_pairs = set()
         for l, r in list(sg.edges):
             left_node, right_node = max(l, r), min(l, r)
-            oppo_left_node, oppo_right_node = get_opposite_allele(left_node), get_opposite_allele(right_node)
+            oppo_left_node, oppo_right_node = get_opposite_allele(left_node, variant_allele_map), get_opposite_allele(right_node, variant_allele_map)
             if (left_node, right_node) in calculated_pairs:
                 continue
             calculated_pairs.add((left_node, right_node))
@@ -269,9 +269,9 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
     df = n-1
     T = scipy.stats.t(df)
     all_pairs, selected_pairs = 0, 0
-    if not os.path.exists('./output/{}/singular_cells'.format(opt.id)):
-        os.mkdir('./output/{}/singular_cells'.format(opt.id))
-    with open('./output/{}/singular_cells/singular_cell_linkage_{}.txt'.format(opt.id, opt.chr), 'w') as f:
+    if not os.path.exists('{}/{}/singular_cells'.format(opt.output_dir, opt.id)):
+        os.mkdir('{}/{}/singular_cells'.format(opt.output_dir, opt.id))
+    with open('{}/{}/singular_cells/singular_cell_linkage_{}.txt'.format(opt.output_dir, opt.id, opt.chr), 'w') as f:
         f.write('barcode\tvar\tgeno\tsupport\tp-value\toppo_support\ttotal_covered_barcodes\tglobal_oppo_support\tcorrect\tis_singular\n')
         for barcode, allele_pairs in barcode_pair_map.items():
             for allele_pair, link_value in allele_pairs.items():
@@ -285,7 +285,7 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
                 f.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], allele_pair)), ''.join(map(lambda x:x.split(':')[1], allele_pair)),link_value, p_value, barcode_pair_neg_map[barcode][allele_pair], barcode_pair_global_neg_map[allele_pair], pair_neg_count_map[allele_pair],is_correct,pair_singular_map[allele_pair]))
     
 def report_allele_linkage(opt,allele_linkage_graph:nx.Graph):    
-    with open('./output/{}/cell_allele_connections_{}.txt'.format(opt.id, opt.chr), 'w') as f:
+    with open('{}/{}/cell_allele_connections_{}.txt'.format(opt.id, opt.chr), 'w') as f:
         f.write('barcode\tvar\tgeno\tsupport\n')
         for edge in allele_linkage_graph.edges:
             barcode_weight_map = allele_linkage_graph.edges[edge]['barcodes']
@@ -314,7 +314,7 @@ def write_phasing_result_to_vcf(opt, variant_hap_map, variant_phase_map):
 
     subprocess.check_call('tabix -h {} "{}" | cut -f 1-9,{} > {}'.format(opt.vcf, opt.chr, sample_column, input_vcf), shell=True)
     format_text = []
-    with open(input_vcf, 'r') as input_file, open('./output/{}/{}.output.vcf'.format(opt.id, opt.chr), 'w') as output_file:
+    with open(input_vcf, 'r') as input_file, open('{}/{}/{}.output.vcf'.format(opt.output_dir, opt.id, opt.chr), 'w') as output_file:
         for line in input_file.readlines():
             if '##FORMAT' in line:
                 format_text.append(line)

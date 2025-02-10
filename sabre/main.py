@@ -64,8 +64,8 @@ def sabre(opt, status_dict, return_list = None, status_list=None):
         resolved_conflicted_nodes, removed_edges = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, phased_vars)
 
         total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs, correct_variants, genome_coverage = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map, variant_allele_map)
-        if opt.singular:
-            output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, mean=min_mean, var=min_var, n=min_n)
+        if opt.residual_edges:
+            output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, variant_allele_map, mean=min_mean, var=min_var, n=min_n)
         if opt.allele_linkage:
             output_utils.report_allele_linkage(opt, allele_linkage_graph)
         print__("Phasing on chromosome {} COMPLETED!".format(opt.chr))
@@ -91,6 +91,9 @@ def sabre(opt, status_dict, return_list = None, status_list=None):
             return_list[opt.chr] =(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, genome_coverage, predict_pairs, correct_pairs, total_possible_pairs)
 
     except Exception as e:
+        if opt.total_chr != None:
+            raise e
+        
         status_dict[opt.chr] = -1
         status_list.append('Exception on {}: {}'.format(opt.chr, e))
 
@@ -136,7 +139,6 @@ def main():
     parser.add_argument("--non_binary_variant", help="If set, means there may be multipul ALT. for a single variant", action='store_true')
     parser.add_argument("--chr_vcf", help="To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF",default=None, type=str)
     parser.add_argument("--neglect_hla", help="Indicate whether neglect variants in HLA region", action='store_true')
-    parser.add_argument("--black_list", help="A blacklist, not implemented yet",default=None, type=str)
     parser.add_argument("--mapq_threshold", '--mapq', help="A filter on bam file. Reads have mapq lower than this threshold will be omitted.",default=60, type=int)
     parser.add_argument("--fiedler_threshold", help="Nodes with corresponding value in fiedler vector lower than threshold will be removed",default=1e-2, type=float)
     parser.add_argument("--remove_node", help="Remove no more than $remove_node$ in split_graph_by_common_shortest_path",default='auto', type=str)
@@ -149,7 +151,8 @@ def main():
     parser.add_argument("--bc_re", help="The regular expression for extracting Cell Barcode in the BAM file.", type=str, default=None)
     parser.add_argument("--umi_re", help="The regular expression for extracting UMI in the BAM file.", type=str, default=None)
     parser.add_argument("--output_conflict", help="Decide whether to output conflict graphs", action='store_true')
-    parser.add_argument("--singular", help="Decide whether perform singular cell detection", action='store_true') 
+    parser.add_argument("--output_dir", help="The path to output directory. Default ./output", default='./output', type=str)
+    parser.add_argument("--residual_edges", help="Decide whether report residual edges.", action='store_true') 
     parser.add_argument("--allele_linkage", help="Decide whether output allele linkage count", action='store_true') 
     parser.add_argument("--thread", help="Number of multithread number", type=int, default=8)
     parser.add_argument("--layers", help="Number of GNN Layer", type=int, default=1)
@@ -177,11 +180,11 @@ def main():
     random.seed(opt.seed)
     np.random.seed(opt.seed)
 
-    if not os.path.exists('./output'):
-        os.mkdir('./output')
+    if not os.path.exists(opt.output_dir):
+        os.mkdir(opt.output_dir)
     
-    if not os.path.exists('./output/{}'.format(opt.id)):
-        os.mkdir('./output/{}'.format(opt.id))
+    if not os.path.exists('{}/{}'.format(opt.output_dir, opt.id)):
+        os.mkdir('{}/{}'.format(opt.output_dir, opt.id))
     
     if opt.vcf_qual < 0:
         print___('[bold red blink]❌ ERROR: [/bold red blink]--vcf_qual must be set >= 0; Current value: {}'.format(opt.vcf_qual))

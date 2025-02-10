@@ -140,7 +140,7 @@ def check_in_phase_graph(graphs, graph_path, output_list, rawlink_list, lbd, pro
 def examine_in_phase(opt, lbd):
     in_phase_output = open('./{}.in.phase.hits.txt'.format(lbd), 'w')
     print('Processing {} in phase...'.format(lbd))
-    graph_path = './output/{}/conflict_graphs/'.format(lbd)
+    graph_path = '{}/{}/conflict_graphs/'.format(opt.output_dir, lbd)
     if not os.path.exists(graph_path): return
     graphs = os.listdir(graph_path)
     total_iterations = int(len(graphs)/opt.threads) + 1
@@ -245,7 +245,7 @@ def check_out_of_phase_graph(graphs, graph_path, output_list, rawlink_list, lbd,
 def examine_out_of_phase(opt, lbd):
     out_of_phase_output = open('./{}.out.of.phase.hits.txt'.format(lbd), 'w')
     print('Processing {} out-of-phase...'.format(lbd))
-    graph_path = './output/{}/conflict_graphs/'.format(lbd)
+    graph_path = '{}/{}/conflict_graphs/'.format(opt.output_dir, lbd)
     if not os.path.exists(graph_path): return
     graphs = os.listdir(graph_path)
     total_iterations = int(len(graphs)/(opt.threads-1)) + 1
@@ -367,11 +367,28 @@ def annotate(opt, output_file, gtf):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--id", help="Input ID", required=True)
+    parser.add_argument("--output_dir", help="Path to output directory, should be the same as sabre --output_dir. Default ./output", required=False, default='./output')
     parser.add_argument("--threads", help="Multithread number", type=int, default=1)
     parser.add_argument("--rawlink", help="Output raw linkage per cell per variant pair", action='store_true')
     parser.add_argument("--gtf", help="Input GTF file", required=True)
     parser.add_argument("--cds", help="If specified, only mutations on CDS will be phased.", action='store_true')
     opt = parser.parse_args()
+
+    # Check Arguments
+    if not os.path.exists(os.path.join(opt.output_dir, opt.id)):
+        raise ValueError("File not found: {}. Please check input argument --id and --output_dir".format(opt.output_dir, opt.id))
+    
+    if opt.threads < 1:
+        raise ValueError("Thread number cannot be less than 1!")
+    
+    if not opt.gtf.endswith('.gtf'):
+        if opt.gtf.endswith('.gtf.gz'):
+            raise ValueError("sabre-somatic only takes gtf file rather than .gtf.gz file. Please unzip your gtf file by\n\t wcat {} > {}.".format(opt.gtf, opt.gtf[:opt.gtf.index(".gz")]))
+        else:
+            raise ValueError("Invalid argument for --gtf. Please give a valid .gtf file.")
+    
+    if not os.path.exists(opt.gtf):
+        raise ValueError("File not found: {}. Please check input argument --gtf".format(opt.gtf))
 
     examine_in_phase(opt, opt.id)
     preprocess('{}.in.phase.hits'.format(opt.id))

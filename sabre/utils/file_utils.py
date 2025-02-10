@@ -200,11 +200,9 @@ def load_vcf(opt):
 
     # Mean to add black-list to prevent unnecessary calculating.
     # However I don't want to implement this
-    if opt.black_list is not None:
-        pass
-    else:
-        command_line += ' | cut -f 1-9,' + str(vcf_column_index_map[opt.sample]+1) + r" | grep -v '0|0\|1|1' > " + processed_vcf_path
-        err_code = subprocess.check_call("set -euo pipefail && "+command_line, shell=True, executable='/bin/bash')
+
+    command_line += ' | cut -f 1-9,' + str(vcf_column_index_map[opt.sample]+1) + r" | grep -v '0|0\|1|1' > " + processed_vcf_path
+    err_code = subprocess.check_call("set -euo pipefail && "+command_line, shell=True, executable='/bin/bash')
 
     if err_code is None:
         raise RuntimeError("Bash returned a err {} when executing {}".format(err_code, command_line))

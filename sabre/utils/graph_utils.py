@@ -24,7 +24,7 @@ def output_graph_weights(opt, G:nx.Graph, vid_var_map):
         G.nodes[node]['x'] = float(pos_x)
         G.nodes[node]['y'] = float(pos_y)
         
-    nx.write_graphml(G, './output/original_graph_{}.graphml'.format(opt.chr))
+    nx.write_graphml(G, '{}/original_graph_{}.graphml'.format(opt.output_dir, opt.chr))
     
     np.save('non-gcn-weight', nx.get_edge_attributes(G, 'weight'))
     np.save('right_edge_weights', right_edge_weights)
@@ -53,14 +53,14 @@ def create_graph(opt, allele_linkage_map, var_barcode_map, allele_linkage_read_c
     G = graph_aggregation_and_update(opt, G)
     return G, np.mean(barcode_link_weights), np.var(barcode_link_weights, ddof=0), len(barcode_link_weights)
 
-def visualize_graph(G:nx.Graph, save_name):
+def visualize_graph(opt, G:nx.Graph, save_name):
     '''
     Save the visualization of graph in PDF format.
     '''
     if len(G.nodes) == 1:
         return
     
-    nx.write_graphml(G, './output/graph_pdfs/{}.graphml'.format(save_name))
+    nx.write_graphml(G, '{}/graph_pdfs/{}.graphml'.format(opt.output_dir, save_name))
 
 def find_connected_components(G:nx.Graph):
     '''
@@ -115,7 +115,7 @@ def find_conflict_graphs(opt, subgraphs:list[nx.Graph], vid_var_map):
                 sg.nodes[node]['x'] = float(pos_x)
                 sg.nodes[node]['y'] = float(pos_y)
 
-            nx.write_graphml(sg, './output/succeed_graph_pdfs/{}.graphml'.format(id(sg)))
+            nx.write_graphml(sg, '{}/succeed_graph_pdfs/{}.graphml'.format(opt.output_dir, id(sg)))
     
     return conflicted_graphs, nonconflicted_graphs
 
@@ -268,11 +268,11 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
 
         sg = nx.Graph(sg)
         if opt.output_conflict:
-            if not os.path.exists('./output/{}'.format(opt.id)):
-                os.mkdir('./output/{}'.format(opt.id))
-            if not os.path.exists('./output/{}/conflict_graphs'.format(opt.id)):
-                os.mkdir('./output/{}/conflict_graphs'.format(opt.id))
-            pickle.dump(sg, open('./output/{}/conflict_graphs/{}.{}.gpickle'.format(opt.id, opt.chr, idx), 'wb'))
+            if not os.path.exists('{}/{}'.format(opt.output_dir, opt.id)):
+                os.mkdir('{}/{}'.format(opt.output_dir, opt.id))
+            if not os.path.exists('{}/{}/conflict_graphs'.formatopt.output_dir, (opt.id)):
+                os.mkdir('{}/{}/conflict_graphs'.format(opt.output_dir, opt.id))
+            pickle.dump(sg, open('{}/{}/conflict_graphs/{}.{}.gpickle'.format(opt.output_dir, opt.id, opt.chr, idx), 'wb'))
 
         if len(sg.nodes) > 2:
             edge_weights = list(nx.get_edge_attributes(sg, 'weight').values())
@@ -319,8 +319,8 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
             for partition in final_partitions:
                 resolved_subgraph = cleared_sg.subgraph(partition)
                 if opt.verbose:
-                    visualize_graph(sg, '{}_1'.format(graph_name))
-                    visualize_graph(resolved_subgraph, '{}_0'.format(graph_name))
+                    visualize_graph(opt, sg, '{}_1'.format(graph_name))
+                    visualize_graph(opt, resolved_subgraph, '{}_0'.format(graph_name))
                 if len(partition) > 1: resolved_nodes.append(list(partition))
                 residual_graph = calculate_graph_difference(residual_graph, sg.subgraph(partition))
 
