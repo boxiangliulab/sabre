@@ -35,7 +35,7 @@ def sabre(opt, status_dict, return_list = None, status_list=None):
     print__('''[purple]
         +---------------------------------------+
         |                                       |
-        |      [bold green]:dna:FASER for scRNA-Seq:dna:[/bold green] [italic purple]v3.0[/italic purple]     |
+        |                 [bold italic green]:dna:sabre:dna:[/bold italic green]                 |
         |                                       |
         +---------------------------------------+
         [/purple]''')
@@ -120,19 +120,18 @@ def main():
     # # Processing args
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--id", help="A unique run ID string (e.g. sample345)", default='scFaser_test_output', required=True)
+    parser.add_argument("--id", help="A unique run ID string (e.g. sample345)", default='sabre_test', required=True)
     parser.add_argument("--bam", help="Indexed BAMs (comma separated) containing aligned reads", default='')
     parser.add_argument("--bam_list", help="A list of input BAM files", required = False, default=None)
     parser.add_argument("--vcf", help="VCF for the sample, must be gzipped and tabix indexed.", default='')
     parser.add_argument("--sample", help="Sample name in VCF", required = True, default='')
-    parser.add_argument("--npy_path", help="If var_format is set to npy, then this argument determines the path of npy file")
     parser.add_argument("--chr", help="To restrict phasing in a given chr on BAM & VCF",default='all', type=str)
     parser.add_argument("--raw_vcf", help="If the vcf is not filtered", action='store_true')
     parser.add_argument("--var_format", help="How variants are determined", default='vcf', choices=['vcf','npy'])
     parser.add_argument("--vcf_qual", help="The quality threshold on QUAL during processing vcf files.", default=30, type=int)
     parser.add_argument("--interval_threshold", help="Alleles with interval more than this threshold will be considered disconnected.", type=int, default=5000)
     parser.add_argument("--base_conflict_threshold", help="Base pairs that diffs less than this threshold will be ignored.", type=float, default=0.05)
-    parser.add_argument("--method", help="Split method, e.g. mincut, fiedler", default='fiedler')
+    parser.add_argument("--method", help="Split method, e.g. mincut, fiedler", default='fiedler', choices=['fiedler', 'mincut'])
     parser.add_argument("--sep", help="Character used to construct split variant information", type=str, default='_')
     parser.add_argument("--non_binary_variant", help="If set, means there may be multipul ALT. for a single variant", action='store_true')
     parser.add_argument("--chr_vcf", help="To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF",default=None, type=str)
@@ -224,7 +223,7 @@ def main():
 
     def perform_bam_check(bam):
         if not os.path.exists(bam):
-            print___('[bold red blink]❌ ERROR: [/bold red blink]BAM file does not exists. Please check input arguments.')
+            print___('[bold red blink]❌ ERROR: [/bold red blink]BAM file does not exist. Please check your input arguments.')
             raise RuntimeError('BAM file not exists')
         
         if not os.path.exists('{}.bai'.format(bam)):
@@ -235,6 +234,10 @@ def main():
         perform_bam_check(opt.bam)
   
     if opt.bam == '':
+        if opt.bam_list == None:
+            raise ValueError("No bam file specified. Please check your input arguments")
+        if not os.path.exists(opt.bam_list):
+            raise ValueError("Invalid bam_list file. Please check your input arguments")
         with open(opt.bam_list) as f:
             for line in f:
                 bamfile = line.split(',')[0]

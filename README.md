@@ -57,8 +57,8 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
  ### Install from source code
  The requirement is the same as installing from pypi.
  ```bash
- $ git clone https://github.com/boxiangliulab/Faser-scRNA.git
- $ cd Faser-scRNA
+ $ git clone https://github.com/boxiangliulab/sabre.git
+ $ cd sabre
  $ pip install .
  ```
 

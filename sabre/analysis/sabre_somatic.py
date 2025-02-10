@@ -348,11 +348,8 @@ def annotate(opt, output_file, gtf):
 
     genes = set(pos_gene_map.values())
 
-    # list(map(lambda x: print(x, end=' '), genes))
 
-    # list(map(lambda x: genes.add(gene_name_re.findall(x)[0]), filter(lambda x: 'CDS\t' in x,f.readlines())))
     genes = list(filter(lambda x:'ENSG' not in x, genes))
-    # genes = list(filter(lambda x:'IG' not in x, genes))
     list(map(lambda x: print(x, end=' '), genes))
 
     with open('./{}.genes.list'.format(output_file), 'w') as f:
