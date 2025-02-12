@@ -35,7 +35,7 @@ def sabre(opt, status_dict, return_list = None, status_list=None):
     print__('''[purple]
         +---------------------------------------+
         |                                       |
-        |                 [bold italic green]:dna:sabre:dna:[/bold italic green]                 |
+        |               [bold italic green]:dna:sabre:dna:[/bold italic green]               |
         |                                       |
         +---------------------------------------+
         [/purple]''')

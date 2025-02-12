@@ -270,7 +270,7 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
         if opt.output_conflict:
             if not os.path.exists('{}/{}'.format(opt.output_dir, opt.id)):
                 os.mkdir('{}/{}'.format(opt.output_dir, opt.id))
-            if not os.path.exists('{}/{}/conflict_graphs'.formatopt.output_dir, (opt.id)):
+            if not os.path.exists('{}/{}/conflict_graphs'.format(opt.output_dir, opt.id)):
                 os.mkdir('{}/{}/conflict_graphs'.format(opt.output_dir, opt.id))
             pickle.dump(sg, open('{}/{}/conflict_graphs/{}.{}.gpickle'.format(opt.output_dir, opt.id, opt.chr, idx), 'wb'))
 
