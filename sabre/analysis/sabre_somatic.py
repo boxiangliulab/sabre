@@ -319,7 +319,7 @@ def preprocess(output_file):
 def annotate(opt, output_file, gtf):
     print('Annotating {}...'.format(output_file))
     selected_pairs = pd.read_csv('{}.csv'.format(output_file), sep=',')
-    if selected_pairs.empty():
+    if selected_pairs.empty:
         print(f"No result for {output_file}")
         return 
     # selected_pairs = pd.read_csv('rua.csv', sep=',')
