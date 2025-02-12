@@ -93,6 +93,8 @@ $ sabre --id test --bam ./example/bam/NA12878.chr5.example.bam --vcf ./example/v
 ```
 If everything was set up right, this command should run with out any error.
 
+For more example inputs and example inputs for `sabre-somatic`, refer to [here](https://drive.google.com/drive/folders/1FRKllOr7AfEYlQeieH-rj6tgVzMQ_2q1?usp=sharing). After downloaded the example input files, try out the given bash scripts to validate the installation of `sabre`.
+
 **BAM input**
 ----
  

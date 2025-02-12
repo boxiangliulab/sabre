@@ -340,7 +340,7 @@ def annotate(opt, output_file, gtf):
         gtf_for_bedtools = gtf
 
     if opt.cds:
-        cmd = 'bedtools intersect -a sites.bed -b {} -wa -wb > annotated_sites.bed | egrep "CDS"'.format(gtf_for_bedtools)
+        cmd = 'bedtools intersect -a sites.bed -b {} -wa -wb | egrep "CDS" > annotated_sites.bed'.format(gtf_for_bedtools)
     else:
         cmd = 'bedtools intersect -a sites.bed -b {} -wa -wb > annotated_sites.bed'.format(gtf_for_bedtools)
     subprocess.check_call(cmd, shell=True)
