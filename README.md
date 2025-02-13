@@ -203,7 +203,7 @@ CTCAGAAAGGAATTAC        chr15_22690417_._A_G,chr15_22690362_._A_G       01      
 ```
 where `support` represents the number of mRNAs supporting this pair of allele in this specified cell barcode. `oppo_support` represents the number of mRNAs in conflict with this pair in this cell barcode. `total_covered_barcodes` represents the number of cells that expressed this two variants. `global_oppo_support` represents the number of mRNAs in conflict with this pair in all cells.
 
-For detailed output, specify `--verbose`.
+For detailed output, and graphical demonstration of ALGs (allele linkage graph), specify `--verbose`. All the conflicted ALGs will be stored in `<output_dir>/<id>/conflict_graphs_graphml/*.graphml`. The resolved conflicted ALGs will be stored in `<output_dir>/<id>/resolved_conflict_graphs_graphml/*.graphml`. The `.graphml` file can be further visualized and analysed using [Gephi](https://gephi.org/).
 
  ### Sabre for somatic variation analysis
 ----
@@ -215,7 +215,7 @@ And to perform **in-phase** and **out-of-phase** detection, run the following co
 # For somatic variation analysis
 $ sabre-somatic --id <id> --gtf <path-to-gtf>
 ```
-An example GTF file could be downloaded here: https://www.gencodegenes.org/human/. Notablly, the downloaded `gtf.gz` file shall be decompressed to `gtf` file for `sabre-somatic`.
+An example GTF file could be downloaded [here](https://www.gencodegenes.org/human/). 
 
 The script will generate two outputs: 
 * in.phase.hits.annotated.csv
@@ -235,7 +235,26 @@ You should perform further custom filtering to get reliable analysis results.
  ### Sabre for RNA-editing analysis
 ----
 
-To perform somatic variations analysis in the paper, you first need to specify `--allele_linkage`.
+To perform somatic variations analysis in the paper, you first need to specify `--allele_linkage`. 
+
+If `--allele_linkage` is specified, sabre will output variant pairs and its configuation in each cell barcode in `<output_dir>/<id>/cell_allele_connections_<chr>.txt`. A example is shown below
+
+```tsv
+barcode var geno    support
+TGAAAGATCTGCTGCT    chr22_17113996_._T_C,chr22_17114025_._G_A   00  1
+GTCATTTGTGTCCTCT    chr22_17113996_._T_C,chr22_17114025_._G_A   00  1
+TCAGGATGTACATCCA    chr22_17115288_._T_C,chr22_17115339_._T_C   11  1
+CTCATTATCAACACCA    chr22_17115288_._T_C,chr22_17115339_._T_C   11  1
+```
+where `barcode` represents a unique cell, `var` represents a variant pair, `geno` represents the configuration of the given variant pairs (`0` represents wild type and `1` represents alternative) and `support` represents the UMI count of the given variant configuration in the given barcode.
+
+After allele linkage information is extracted, we can then perform RNA-editing analysis. 
+
+First, edit sites and potential edQTL sites shall be filtered. We perform this filtering by refering to the GTEx edQTL data. The GTEx edQTL data can be downloaded [here](https://storage.googleapis.com/adult-gtex/bulk-qtl/v8/editing-qtl/GTEx_Analysis_v8_edQTL.tar).
+
+As data format and analysis result may vary drastically for RNA-Editing, we did not provide a standard analysis pipeline for edQTL analysis. The R script used to reproduce the RNA-Editing analysis in the sabre paper is in `example/sabre_rna_editing.R` for reference and further modifications.
+
+We welcome any enquiries on usage of sabre on single-cell edQTL analysis!
 
  ## Options
 
