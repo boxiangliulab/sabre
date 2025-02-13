@@ -60,7 +60,7 @@ def visualize_graph(opt, G:nx.Graph, save_name):
     if len(G.nodes) == 1:
         return
     
-    nx.write_graphml(G, '{}/{}/graph_pdfs/{}.graphml'.format(opt.output_dir, opt.id, save_name))
+    nx.write_graphml(G, '{}/{}/resolved_conflict_graphs_graphml/{}.graphml'.format(opt.output_dir, opt.id, save_name))
 
 def find_connected_components(G:nx.Graph):
     '''
@@ -115,7 +115,7 @@ def find_conflict_graphs(opt, subgraphs:list[nx.Graph], vid_var_map):
                 sg.nodes[node]['x'] = float(pos_x)
                 sg.nodes[node]['y'] = float(pos_y)
 
-            nx.write_graphml(sg, '{}/{}/conflict_graphs/{}.graphml'.format(opt.output_dir, opt.id, id(sg)))
+            nx.write_graphml(sg, '{}/{}/conflict_graphs_graphml/{}.graphml'.format(opt.output_dir, opt.id, id(sg)))
     
     return conflicted_graphs, nonconflicted_graphs
 
