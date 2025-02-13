@@ -252,7 +252,24 @@ After allele linkage information is extracted, we can then perform RNA-editing a
 
 First, edit sites and potential edQTL sites shall be filtered. We perform this filtering by refering to the GTEx edQTL data. The GTEx edQTL data can be downloaded [here](https://storage.googleapis.com/adult-gtex/bulk-qtl/v8/editing-qtl/GTEx_Analysis_v8_edQTL.tar).
 
-As data format and analysis result may vary drastically for RNA-Editing, we did not provide a standard analysis pipeline for edQTL analysis. The R script used to reproduce the RNA-Editing analysis in the sabre paper is in `example/sabre_rna_editing.R` for reference and further modifications.
+After data preparation and filtered `var` into one RNA-editing site and potential edQTL, you shall count the summation of `support` with different `geno` and same `barcode` and `var`, which represents mRNA count of different configuration of edQTL and editing site pairs.
+
+For example, assume in a certain `cell_allele_connections_<chr>.txt`
+```tsv
+barcode var geno    support
+TGAAAGATCTGCTGCT    <edQTL>,<Editing Site>   00  a
+TGAAAGATCTGCTGCT    <edQTL>,<Editing Site>   01  b
+TGAAAGATCTGCTGCT    <edQTL>,<Editing Site>   10  c
+TGAAAGATCTGCTGCT    <edQTL>,<Editing Site>   11  d
+```
+those four lines provide us the atlas of a certain pair of edQTL and editing site in a certain cell. We can calculate the editing level of edQTL by
+```
+ref_level = b / a + b
+alt_level = d / c + d
+```
+Furthermore, we can generalize this into a certain cohort by group by the same `var` among all samples and analyze cell type-specific RNA-editing by annotating each barcode with its cell type and group by the annotated cell type. However, as data format and analysis aim may vary drastically for RNA-Editing, we could not provide a standard and generalized analysis pipeline for edQTL analysis. 
+
+The R script used to reproduce the RNA-Editing analysis in the sabre paper is in `example/sabre_rna_editing.R` for reference and further modifications.
 
 We welcome any enquiries on usage of sabre on single-cell edQTL analysis!
 
