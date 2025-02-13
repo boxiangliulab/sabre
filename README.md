@@ -262,7 +262,7 @@ TGAAAGATCTGCTGCT    <edQTL>,<Editing Site>   01  b
 TGAAAGATCTGCTGCT    <edQTL>,<Editing Site>   10  c
 TGAAAGATCTGCTGCT    <edQTL>,<Editing Site>   11  d
 ```
-those four lines provide us the atlas of a certain pair of edQTL and editing site in a certain cell. We can calculate the editing level of edQTL by
+those four lines provide us the counting information of a certain pair of edQTL and editing site in a certain cell. We can calculate the editing level of `<edQTL>` on `<Editing Site>` by
 ```
 ref_level = b / a + b
 alt_level = d / c + d
