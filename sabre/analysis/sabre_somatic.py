@@ -341,9 +341,9 @@ def annotate(opt, output_file, gtf):
         gtf_for_bedtools = gtf
 
     if opt.cds:
-        cmd = 'bedtools intersect -a sites.bed -b {} -wa -wb | egrep "CDS" > annotated_sites.bed'.format(gtf_for_bedtools)
+        cmd = 'bedtools intersect -a {}/{}/sites.bed -b {} -wa -wb | egrep "CDS" > {}/{}/annotated_sites.bed'.format(opt.output_dir, opt.id ,gtf_for_bedtools, opt.output_dir, opt.id)
     else:
-        cmd = 'bedtools intersect -a sites.bed -b {} -wa -wb > annotated_sites.bed'.format(gtf_for_bedtools)
+        cmd = 'bedtools intersect -a {}/{}/sites.bed -b {} -wa -wb > {}/{}/annotated_sites.bed'.format(opt.output_dir, opt.id, gtf_for_bedtools, opt.output_dir, opt.id)
     subprocess.check_call(cmd, shell=True)
 
     import re
@@ -392,7 +392,7 @@ def main():
     if opt.threads < 1:
         raise ValueError("Thread number cannot be less than 1!")
     
-    if not opt.gtf.endswith('.gtf') or not opt.gtf.endswith('.gtf.gz'):
+    if not opt.gtf.endswith('.gtf') and not opt.gtf.endswith('.gtf.gz'):
         raise ValueError("Invalid argument for --gtf. Please give a valid .gtf file or .gtf.gz file.")
     
     if not os.path.exists(opt.gtf):
