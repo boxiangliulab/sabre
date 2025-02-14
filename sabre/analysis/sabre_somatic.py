@@ -392,6 +392,8 @@ def main():
     
     if opt.threads < 1:
         raise ValueError("Thread number cannot be less than 1!")
+    elif opt.threads == 1:
+        opt.threads = 2
     
     if not opt.gtf.endswith('.gtf') and not opt.gtf.endswith('.gtf.gz'):
         raise ValueError("Invalid argument for --gtf. Please give a valid .gtf file or .gtf.gz file.")
