@@ -334,8 +334,9 @@ def annotate(opt, output_file, gtf):
     import subprocess
 
     if gtf.endswith('.gtf.gz'):
-        cmd = f'zcat {gtf} > {gtf[gtf.index('.gz')]}'
         gtf_for_bedtools = gtf[gtf.index('.gz')]
+        cmd = f'zcat {gtf} > {gtf_for_bedtools}'
+        
     else:
         gtf_for_bedtools = gtf
 
@@ -391,7 +392,7 @@ def main():
     if opt.threads < 1:
         raise ValueError("Thread number cannot be less than 1!")
     
-    if not opt.gtf.endswith('.gtf'):
+    if not opt.gtf.endswith('.gtf') or not opt.gtf.endswith('.gtf.gz'):
         raise ValueError("Invalid argument for --gtf. Please give a valid .gtf file or .gtf.gz file.")
     
     if not os.path.exists(opt.gtf):
