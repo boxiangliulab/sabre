@@ -138,7 +138,7 @@ def check_in_phase_graph(graphs, graph_path, output_list, rawlink_list, lbd, pro
 
 
 def examine_in_phase(opt, lbd):
-    in_phase_output = open('./{}.in.phase.hits.txt'.format(lbd), 'w')
+    in_phase_output = open('{}/{}/{}.in.phase.hits.txt'.format(opt.output_dir, opt.id, lbd), 'w')
     print('Processing {} in phase...'.format(lbd))
     graph_path = '{}/{}/conflict_graphs/'.format(opt.output_dir, lbd)
     if not os.path.exists(graph_path): return
@@ -164,7 +164,7 @@ def examine_in_phase(opt, lbd):
 
         list(map(in_phase_output.write, set(output_list)))
         if rawlink_list is not None:
-            with open('./{}.in.phase.hits.raw.linkage.txt'.format(lbd), 'w') as f:
+            with open('{}/{}/{}.in.phase.hits.raw.linkage.txt'.format(opt.output_dir, opt.id, lbd), 'w') as f:
                 list(map(f.write, rawlink_list))
 
     in_phase_output.close()
@@ -243,7 +243,7 @@ def check_out_of_phase_graph(graphs, graph_path, output_list, rawlink_list, lbd,
             progress_list[thread_id] += 1
 
 def examine_out_of_phase(opt, lbd):
-    out_of_phase_output = open('./{}.out.of.phase.hits.txt'.format(lbd), 'w')
+    out_of_phase_output = open('{}/{}/{}.out.of.phase.hits.txt'.format(opt.output_dir, opt.id, lbd), 'w')
     print('Processing {} out-of-phase...'.format(lbd))
     graph_path = '{}/{}/conflict_graphs/'.format(opt.output_dir, lbd)
     if not os.path.exists(graph_path): return
@@ -270,16 +270,16 @@ def examine_out_of_phase(opt, lbd):
 
         list(map(out_of_phase_output.write, set(output_list)))
         if rawlink_list is not None:
-            with open('./{}.out.of.phase.hits.raw.linkage.txt'.format(lbd), 'w') as f:
+            with open('{}/{}/{}.out.of.phase.hits.raw.linkage.txt'.format(opt.output_dir, opt.id, lbd), 'w') as f:
                 list(map(f.write, rawlink_list))
 
     out_of_phase_output.close()
 
 
 
-def preprocess(output_file):
+def preprocess(opt, output_file):
     print('Preprocessing {}...'.format(output_file))
-    potential_df = pd.read_csv('./{}.txt'.format(output_file), sep='\t', header=None, names=['Sample', 'File', 'Var1', 'Var2', '00', '01', '10', '00_cell', '01_cell', '10_cell', '00_raw_count', '01_raw_count', '10_raw_count', 'Var1:0', 'Var1:1', 'Var2:0', 'Var2:1'])
+    potential_df = pd.read_csv('{}/{}/{}.txt'.format(opt.output_dir, opt.id, output_file), sep='\t', header=None, names=['Sample', 'File', 'Var1', 'Var2', '00', '01', '10', '00_cell', '01_cell', '10_cell', '00_raw_count', '01_raw_count', '10_raw_count', 'Var1:0', 'Var1:1', 'Var2:0', 'Var2:1'])
 
     potential_df = potential_df[['Sample', 'Var1', 'Var2', '00', '01', '10', '00_cell', '01_cell', '10_cell', '00_raw_count', '01_raw_count', '10_raw_count', 'Var1:0', 'Var1:1', 'Var2:0', 'Var2:1']]
     potential_df['Sample'] = potential_df['Sample'].apply(lambda x: x if not x.endswith('_002') else x[:x.index('_002')])
@@ -328,7 +328,7 @@ def annotate(opt, output_file, gtf):
     vars_ = var1 + var2
     vars_ = set(vars_)
 
-    with open('sites.bed', 'w') as f:
+    with open('{}/{}/sites.bed'.format(opt.output_dir, opt.id), 'w') as f:
         list(map(lambda x:f.write('{}\t{}\t{}\n'.format(x.split('_')[0], x.split('_')[1], int(x.split('_')[1])+1)), vars_))
 
     import subprocess
@@ -347,7 +347,7 @@ def annotate(opt, output_file, gtf):
 
     import re
     gene_name_re = re.compile(r'gene_name "(.*?)";')
-    f = open('annotated_sites.bed')
+    f = open('{}/{}/annotated_sites.bed'.format(opt.output_dir, opt.id))
 
     pos_gene_map = {}
 
@@ -362,7 +362,7 @@ def annotate(opt, output_file, gtf):
     genes = list(filter(lambda x:'ENSG' not in x, genes))
     list(map(lambda x: print(x, end=' '), genes))
 
-    with open('./{}.genes.list'.format(output_file), 'w') as f:
+    with open('{}/{}/{}.genes.list'.format(opt.output_dir, opt.id, output_file), 'w') as f:
         list(map(lambda x: f.write('{} '.format(x)), genes))
 
     def find_corresponding_gene(group):
@@ -372,7 +372,7 @@ def annotate(opt, output_file, gtf):
 
     selected_pairs['gene'] = selected_pairs.apply(find_corresponding_gene, axis=1)
     selected_pairs = selected_pairs[selected_pairs['gene']!=False]
-    selected_pairs.to_csv('./{}.annotated.csv'.format(output_file), sep='\t', index=False)
+    selected_pairs.to_csv('{}/{}/{}.annotated.csv'.format(opt.output_dir, opt.id, output_file), sep='\t', index=False)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -398,11 +398,11 @@ def main():
         raise ValueError("File not found: {}. Please check input argument --gtf".format(opt.gtf))
 
     examine_in_phase(opt, opt.id)
-    preprocess('{}.in.phase.hits'.format(opt.id))
+    preprocess(opt, '{}.in.phase.hits'.format(opt.id))
     annotate(opt, '{}.in.phase.hits'.format(opt.id), opt.gtf)
 
     examine_out_of_phase(opt, opt.id)
-    preprocess('{}.out.of.phase.hits'.format(opt.id))
+    preprocess(opt, '{}.out.of.phase.hits'.format(opt.id))
     annotate(opt, '{}.out.of.phase.hits'.format(opt.id), opt.gtf)
 
 if __name__ == '__main__':

@@ -285,7 +285,7 @@ def report_singular_cells(opt, removed_sub_graphs:list[nx.Graph], final_graph:nx
                 f.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(barcode, ','.join(map(lambda x:x.split(':')[0], allele_pair)), ''.join(map(lambda x:x.split(':')[1], allele_pair)),link_value, p_value, barcode_pair_neg_map[barcode][allele_pair], barcode_pair_global_neg_map[allele_pair], pair_neg_count_map[allele_pair],is_correct,pair_singular_map[allele_pair]))
     
 def report_allele_linkage(opt,allele_linkage_graph:nx.Graph):    
-    with open('{}/{}/cell_allele_connections_{}.txt'.format(opt.id, opt.chr), 'w') as f:
+    with open('{}/{}/cell_allele_connections_{}.txt'.format(opt.output_dir, opt.id, opt.chr), 'w') as f:
         f.write('barcode\tvar\tgeno\tsupport\n')
         for edge in allele_linkage_graph.edges:
             barcode_weight_map = allele_linkage_graph.edges[edge]['barcodes']
