@@ -109,7 +109,11 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
     variant_phase_map = {}
 
     with open('{}/{}/{}.output.SABRE'.format(opt.output_dir, opt.id, opt.chr), 'w') as g:
+
+        output_stream =  {}
+
         for nodes in final_haplotypes:
+            output_str = ''
             # var_phasing_list: [(chr1_147242777_._G_C, 1), ...]
             var_phasing_list = list(map(lambda x: x.split(':'), nodes))
             var_phasing_list = sorted(var_phasing_list, key=lambda x: int(x[0].split(opt.sep)[1]))
@@ -167,15 +171,20 @@ def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes
                 genome_poses = list(map(lambda x: int(x.split(opt.sep)[1]), vids))
                 genome_coverage.append(max(genome_poses) - min(genome_poses))
 
-                g.write('BLOCK: offset: {} len: {} phased: {} SPAN: {} correct: {}\n'.format(vid_var_map[vids[0]].end, len(vids), len(vids), vid_var_map[vids[-1]].end - vid_var_map[vids[0]].end, is_correct))
+                output_str += 'BLOCK: offset: {} len: {} phased: {} SPAN: {} correct: {}\n'.format(vid_var_map[vids[0]].end, len(vids), len(vids), vid_var_map[vids[-1]].end - vid_var_map[vids[0]].end, is_correct)
                 hap_str = ';'.join(vids)
                 for vid, p_, g_ in zip(vids, phasing, list(map(lambda x: vid_var_map[x].genotype_string.split('|')[0] if vid_var_map[x].is_phased else '-', vids))):
-                    g.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(idx, p_, abs(1-int(p_)), opt.chr, vid_var_map[vid].end, vid_var_map[vid].unique_id.split(opt.sep)[-2 + int(p_)], vid_var_map[vid].unique_id.split(opt.sep)[-2 + abs(1-int(p_))], '{}|{}'.format(g_, abs(1-int(g_))) if g_ != '-' else '-|-'))
+                    output_str += '{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(idx, p_, abs(1-int(p_)), opt.chr, vid_var_map[vid].end, vid_var_map[vid].unique_id.split(opt.sep)[-2 + int(p_)], vid_var_map[vid].unique_id.split(opt.sep)[-2 + abs(1-int(p_))], '{}|{}'.format(g_, abs(1-int(g_))) if g_ != '-' else '-|-')
                     idx += 1
                     if opt.output_vcf:
                         variant_hap_map[vid] = hap_str
                         variant_phase_map[vid] = '{}|{}'.format(p_, abs(1-int(p_)))
-                g.write('****************\n')
+                        if variant_phase_map[vid] == ['-|-']: variant_phase_map[vid] = '0/1'
+                output_str += '****************\n'
+                output_stream[int(vid_var_map[vids[0]].end)] = output_str
+        
+        output_indices = sorted(output_stream.keys())
+        list(map(lambda x: g.write(output_stream[x]), output_indices))
 
     if opt.output_vcf:
         write_phasing_result_to_vcf(opt, variant_hap_map, variant_phase_map)
