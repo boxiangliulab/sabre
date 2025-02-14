@@ -314,11 +314,11 @@ def preprocess(opt, output_file):
         _00, _01, _10 = group['00_raw_count'], group['01_raw_count'], group['10_raw_count']
         return sum([_00, _01, _10])
 
-    potential_df.to_csv('{}.csv'.format(output_file), index=False)
+    potential_df.to_csv('{}/{}/{}.csv'.format(opt.output_dir, opt.id, output_file), index=False)
 
 def annotate(opt, output_file, gtf):
     print('Annotating {}...'.format(output_file))
-    selected_pairs = pd.read_csv('{}.csv'.format(output_file), sep=',')
+    selected_pairs = pd.read_csv('{}/{}/{}.csv'.format(opt.output_dir, opt.id, output_file), sep=',')
     if selected_pairs.empty:
         print(f"No result for {output_file}")
         return 
@@ -336,7 +336,8 @@ def annotate(opt, output_file, gtf):
     if gtf.endswith('.gtf.gz'):
         gtf_for_bedtools = gtf[gtf.index('.gz')]
         cmd = f'zcat {gtf} > {gtf_for_bedtools}'
-        
+
+
     else:
         gtf_for_bedtools = gtf
 
