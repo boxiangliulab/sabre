@@ -38,14 +38,14 @@ class sabre_regex:
         self.umi_counter = 0
 
         if re_type == 'bulk':
-            self.find_bc = lambda x: [x.strip().split('\t')[0]]
-            self.find_umi = lambda x: [x.strip().split('\t')[0]]
+            self.find_bc = lambda x: x.strip().split('\t')[0]
+            self.find_umi = lambda x: x.strip().split('\t')[0]
         elif re_type == 'smartseq':
-            self.find_bc = lambda x: ['pseudobc']
-            self.find_umi = lambda x: ['pseudoumi']
+            self.find_bc = lambda x: 'pseudobc'
+            self.find_umi = lambda x: 'pseudoumi'
         elif re_type in ['re', 'umitools', 'star', 'cellranger']:
-            self.find_bc = bc_re.search
-            self.find_umi = umi_re.search
+            self.find_bc = lambda x: bc_re.search(x).group(1)
+            self.find_umi = lambda x: umi_re.search(x).group(1)
 
 def create_variant(sep, col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased) -> None:
     unique_id = sep.join([col_chr, col_pos, col_id, col_ref, col_alt])
