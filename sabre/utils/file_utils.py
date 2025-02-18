@@ -44,8 +44,8 @@ class sabre_regex:
             self.find_bc = lambda x: 'pseudobc'
             self.find_umi = lambda x: 'pseudoumi'
         elif re_type in ['re', 'umitools', 'star', 'cellranger']:
-            self.find_bc = lambda x: bc_re.search(x).group(1)
-            self.find_umi = lambda x: umi_re.search(x).group(1)
+            self.find_bc = lambda x: None if bc_re.search(x) is None else bc_re.search(x).group(1)
+            self.find_umi = lambda x: None if umi_re.search(x) is None else umi_re.search(x).group(1)
 
 def create_variant(sep, col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased) -> None:
     unique_id = sep.join([col_chr, col_pos, col_id, col_ref, col_alt])
@@ -343,12 +343,7 @@ def generate_reads(opt, output_sam_paths):
                 
                 bamline = Bamline(col_pos, col_seq, col_qual, col_cigar, alignment_score)
                 barcode, umi = find_bc_umi.find_bc(line), find_bc_umi.find_umi(line)
-                if not isinstance(barcode, str) and not isinstance(umi, str):
-                    if barcode is not None and umi is not None:
-                        barcode = barcode.group(1)
-                        umi = umi.group(1)
-                    else:
-                        continue
+                if barcode is None or umi is None: continue
                     
                 umi_barcode = '.'.join([umi, barcode]) + '_{}'.format(name)
                 umibarcode_line_map[umi_barcode].append(bamline)
