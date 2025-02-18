@@ -343,11 +343,12 @@ def generate_reads(opt, output_sam_paths):
                 
                 bamline = Bamline(col_pos, col_seq, col_qual, col_cigar, alignment_score)
                 barcode, umi = find_bc_umi.find_bc(line), find_bc_umi.find_umi(line)
-                if barcode is not None and umi is not None:
-                    barcode = barcode.group(1)
-                    umi = umi.group(1)
-                else:
-                    continue
+                if not isinstance(barcode, str) and not isinstance(umi, str):
+                    if barcode is not None and umi is not None:
+                        barcode = barcode.group(1)
+                        umi = umi.group(1)
+                    else:
+                        continue
                     
                 umi_barcode = '.'.join([umi, barcode]) + '_{}'.format(name)
                 umibarcode_line_map[umi_barcode].append(bamline)
