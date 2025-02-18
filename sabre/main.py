@@ -91,7 +91,7 @@ def sabre(opt, status_dict, return_list = None, status_list=None):
             return_list[opt.chr] =(total_hap, correct_hap,phasable_variants, total_nodes, correct_variants, genome_coverage, predict_pairs, correct_pairs, total_possible_pairs)
 
     except Exception as e:
-        if opt.total_chr != None:
+        if opt.total_chr == None:
             raise e
         
         status_dict[opt.chr] = -1
@@ -136,6 +136,7 @@ def main():
     parser.add_argument("--base_conflict_threshold", help="Base pairs that diffs less than this threshold will be ignored.", type=float, default=0.05)
     parser.add_argument("--method", help="Split method, e.g. mincut, fiedler", default='fiedler', choices=['fiedler', 'mincut'])
     parser.add_argument("--sep", help="Character used to construct split variant information", type=str, default='_')
+    parser.add_argument("--no_vcf_id", help="If set, the 'ID' row in vcf file will not be retained", action='store_true')
     parser.add_argument("--non_binary_variant", help="If set, means there may be multipul ALT. for a single variant", action='store_true')
     parser.add_argument("--chr_vcf", help="To restrict phasing in a given chr on VCF, if chromosome is not named equally between BAM and VCF",default=None, type=str)
     parser.add_argument("--neglect_hla", help="Indicate whether neglect variants in HLA region", action='store_true')

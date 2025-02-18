@@ -266,7 +266,10 @@ def generate_variants(opt, processed_vcf_path):
             # Restrict the length of alternative base pair into 1.
             all_alleles = col_alt.split(',') + [col_ref]
             if max([len(x) for x in all_alleles]) == 1:
-                variants.append(create_variant(opt.sep, col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased))
+                if opt.no_vcf_id:
+                    variants.append(create_variant(opt.sep, col_chr, col_pos, '.', col_ref, col_alt, col_qual, genotype_string, is_phased))
+                else:
+                    variants.append(create_variant(opt.sep, col_chr, col_pos, col_id, col_ref, col_alt, col_qual, genotype_string, is_phased))
             else:
                 filtered_record_num += 1
                 continue
