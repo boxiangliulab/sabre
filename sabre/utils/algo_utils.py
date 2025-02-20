@@ -18,7 +18,7 @@ def binary_search(pos:int, variants, left, right, right_bound=0):
             right = mid - 1
     return left
 
-def read_var_map(opt, reads, variants):
+def read_var_map(opt, reads, variants, somatic_variants):
     '''
     Map variants onto the reads.
     First all the variants are sorted by their positions (ascending order).
@@ -26,7 +26,7 @@ def read_var_map(opt, reads, variants):
     Make intersections and get the rest variants are located on the read.
     '''
     # First, sort all the variants by their starting point on the genome.
-    variants = sorted(variants, key=lambda x: x.end)
+    variants = sorted(variants + somatic_variants, key=lambda x: x.end)
     variants_len = len(variants) - 1
     total_match = 0
     match_once = 0

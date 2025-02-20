@@ -278,14 +278,43 @@ def generate_variants(opt, processed_vcf_path):
 
     print('Received {} variants in total, {} variants taken, {} variants omitted.'.\
           format(total_record_num, total_record_num-filtered_record_num, filtered_record_num))
-    
+
     os.remove(processed_vcf_path)
     
     vid_var_map = collections.OrderedDict()
     for var in variants:
         vid_var_map[var.unique_id] = var
 
-    return variants, vid_var_map
+    somatic_variants = []
+    if opt.mono is not None:
+        with open(opt.mono) as f:
+            for line in f:
+                if line.startswith('chr,pos'): continue
+                items = line.strip().split(',')
+                chr_, pos, ref, alt = items[:4]
+                
+                svm_score = items[7]
+                ld_score = items[10]
+                baf_score = items[11]
+                depth_ref = items[5]
+                depth_alt = items[6]
+
+                if svm_score < opt.mono_svm: continue
+                if ld_score < opt.ld: continue
+                if baf_score < opt.mono_baf_l or baf_score > opt.mono_baf_u: continue
+                if depth_alt < opt.mono_alt or depth_ref < opt.mono_ref: continue
+
+                tmp_variant = create_variant(opt.sep, chr_, pos, '.', ref, alt, 100, '0/1', False)
+
+                if tmp_variant.unique_id in vid_var_map.keys():
+                    vid_var_map.pop(tmp_variant.unique_id)
+                    
+                somatic_variants.append(create_variant(opt.sep, chr_, pos, 'somatic', ref, alt, 100, '0/1', False))
+
+    for var in somatic_variants:
+        vid_var_map[var.unique_id] = var
+
+    return variants, somatic_variants, vid_var_map
            
 
 def load_bam(opt, bed_file):
@@ -359,13 +388,13 @@ def generate_reads(opt, output_sam_paths):
         for umi_barcode, lines in umibarcode_line_map.items():
             yield generate_read_from_bamline(umi_barcode=umi_barcode, bamline_list=lines)
 
-def generate_bed_file(opt, variants:list[Variant]):
+def generate_bed_file(opt, variants:list[Variant], somatic_variants:list[Variant]):
     '''
     Generate BED file, which contains var, var_start, var_end
     '''
     bed_file = tempfile.NamedTemporaryFile(delete=False, mode='wt', dir=opt.tmp_dir)
     sep = opt.sep
-    for var in variants:
+    for var in variants + somatic_variants:
         bed_file.write('{}\t{}\t{}\n'.format(sep.join(var.unique_id.split(sep)[:-4]), var.end-1, var.end))
     bed_file.close()
     return bed_file.name
