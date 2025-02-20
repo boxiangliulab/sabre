@@ -143,7 +143,7 @@ We applied multiple threshold on the BAM file to achieve balance between precisi
 
 Variants pending for phasing are given by VCF files. By providing VCF files using `--vcf`, you should provide the desired sample name in the VCF file with `--sample`.
 
-Sometimes there are no ground truth VCF files, nor is there an existing VCF file for an individual. In other words, you only have the scRNA-seq bam file. Worry not! You can call variants on your own using the following command. Note that `samtools` and `bcftools` are not optimized for single-cell data. Consider using [Monopogen](https://github.com/KChen-lab/Monopogen), which designed for scRNA-seq data.   
+Sometimes there are no ground truth VCF files, nor is there an existing VCF file for an individual. In other words, you only have the scRNA-seq bam file. Worry not! You can call variants on your own using the following command. 
 
 
 ```bash
@@ -154,6 +154,39 @@ $ bgzip -c tmp.vcf > <your-desired-name>.vcf.gz
 $ tabix -p vcf <your-desired-name>.vcf.gz
 ```
 You can perform further filtering on this VCF file or simply indicate `--raw_vcf` and `--vcf_qual <threshold-on-vcf-QUAL>` when using Sabre.
+
+
+Note that `samtools` and `bcftools` are not optimized for single-cell data. Consider using [Monopogen](https://github.com/KChen-lab/Monopogen), which designed for scRNA-seq data. A typical output of Monopogen is like:
+```
+├── germline
+│   ├── chr1.gl.vcf.gz
+│   ├── chr1.gp.vcf.gz
+│   ├── chr1.phased.vcf.gz
+├── Script
+└── somatic
+    ├── chr1.allSNVs.csv
+    ├── chr1.cell_snv.cellID.csv
+    ├── chr1.cell_snv.cellID.filter.csv
+    ├── chr1.cell_snv.mat.gz
+    ├── chr1.cell_snv.snvID.csv
+    ├── chr1.germlineTrioLoci_model.csv
+    ├── chr1.germlineTwoLoci_model.csv
+    ├── chr1.gl.filter.hc.cell.mat.gz
+    ├── chr1.gl.vcf.DP4
+    ├── chr1.gl.vcf.filter.DP4
+    ├── chr1.gl.vcf.filter.hc.bed
+    ├── chr1.gl.vcf.filter.hc.pos
+    ├── chr1.putativeSNVs.csv
+    ├── chr1.SNV_mat.RDS
+    ├── LDrefinement_germline.chr1.pdf
+    └── svm_feature.chr1.pdf
+```
+To use Monopogen's output as `sabre`'s input, run command
+```bash
+$ tabix -p vcf <path-to-monopogen-output>/germline/chr1.gp.vcf.gz
+$ sabre --id <ID> --bam <path-to-bam> --vcf <path-to-monopogen-output>/germline/<chr>.gp.vcf.gz --mono <path-to-monopogen-output>/somatic/<chr>.putativeSNVs.csv --sample <SAMPLE_NAME> --chr <desired_chr> --input_type <cellranger/umitools/star/re> 
+```
+If `--mono` is specified, somatic variants and germline variants will be annotated both in `.SABRE` output and output `.vcf` files.
 
 Sometimes, the input chromosome may contain the **"_"** character, e.g. mm10_1. To prevent errors, you need to specify `--sep <any-character-you-like-except-from-_-and-:>`. And in other circumstances, the naming style of given BAM file and VCF file may be different. You can use `--chr_vcf <chr-on-VCF-file>` to specify the desired chromosome in the VCF file.
 
@@ -319,6 +352,16 @@ We welcome any enquiries on usage of sabre on single-cell edQTL analysis!
 
 ### Performance Related Options
 * `--thread`: Number of thread number for multiprocessing. Default `8`. 
+
+### Monopogen Related Options
+* `--mono`: The result putativeSNVs.csv of Monopogen somatic output, used for somatic variation analysis
+* `--mono_svm`: Threshold on SVM_pos_score in putativeSNVs.csv. Default: `0.5`
+* `--mono_ld`: Threshold on LDrefine_merged_score in putativeSNVs.csv. Default: `0.5`
+* `--mono_baf_u`: The upper bound on BAF_alt in putativeSNVs.csv. Default: `0.5`
+* `--mono_baf_l`: The lower bound on BAF_alt in putativeSNVs.csv. Default: `0.1`
+* `--mono_ref`:Threshold on Dep_ref in putativeSNVs.csv. Default: `5`
+* `--mono_alt`: Threshold on Dep_alt in putativeSNVs.csv. Default: `5`
+
 
 ### Sabre-somatic Options
 * `--id`: The ID of Sabre run.
