@@ -272,7 +272,16 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
                 os.mkdir('{}/{}'.format(opt.output_dir, opt.id))
             if not os.path.exists('{}/{}/conflict_graphs'.format(opt.output_dir, opt.id)):
                 os.mkdir('{}/{}/conflict_graphs'.format(opt.output_dir, opt.id))
-            pickle.dump(sg, open('{}/{}/conflict_graphs/{}.{}.gpickle'.format(opt.output_dir, opt.id, opt.chr, idx), 'wb'))
+
+            is_contain_somatic = False
+            for nodes in sg.nodes:
+                if 'somatic' in nodes:
+                    is_contain_somatic = True
+                    break
+            if is_contain_somatic:
+                pickle.dump(sg, open('{}/{}/conflict_graphs/{}.{}.somatic.gpickle'.format(opt.output_dir, opt.id, opt.chr, idx), 'wb'))
+            else:
+                pickle.dump(sg, open('{}/{}/conflict_graphs/{}.{}.gpickle'.format(opt.output_dir, opt.id, opt.chr, idx), 'wb'))
 
         if len(sg.nodes) > 2:
             edge_weights = list(nx.get_edge_attributes(sg, 'weight').values())
