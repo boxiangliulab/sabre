@@ -276,9 +276,6 @@ def generate_variants(opt, processed_vcf_path):
     if total_record_num - filtered_record_num == 0:
         raise RuntimeError("No variants are taken from given VCF file.\n \t Please check if the inputed VCF file is not corrupted or the filtering threshold is resonable.")
 
-    print('Received {} variants in total, {} variants taken, {} variants omitted.'.\
-          format(total_record_num, total_record_num-filtered_record_num, filtered_record_num))
-
     os.remove(processed_vcf_path)
     
     vid_var_map = collections.OrderedDict()
@@ -290,8 +287,10 @@ def generate_variants(opt, processed_vcf_path):
         with open(opt.mono) as f:
             for line in f:
                 if line.startswith('chr,pos'): continue
+                
                 items = line.strip().split(',')
                 chr_, pos, ref, alt = items[:4]
+                if items[10] == 'NA': continue
                 
                 svm_score = float(items[7])
                 ld_score = float(items[10])
@@ -300,7 +299,7 @@ def generate_variants(opt, processed_vcf_path):
                 depth_alt = int(items[6])
 
                 if svm_score < opt.mono_svm: continue
-                if ld_score < opt.ld: continue
+                if ld_score < opt.mono_ld: continue
                 if baf_score < opt.mono_baf_l or baf_score > opt.mono_baf_u: continue
                 if depth_alt < opt.mono_alt or depth_ref < opt.mono_ref: continue
 
@@ -310,6 +309,11 @@ def generate_variants(opt, processed_vcf_path):
                     vid_var_map.pop(tmp_variant.unique_id)
                     
                 somatic_variants.append(create_variant(opt.sep, chr_, pos, 'somatic', ref, alt, 100, '0/1', False))
+
+    print('Received {} Germline variants in total, {} variants taken, {} variants omitted.'.\
+        format(total_record_num, total_record_num-filtered_record_num, filtered_record_num))
+
+    print('Received {} Somatic variants in total'.format(len(somatic_variants)))
 
     for var in somatic_variants:
         vid_var_map[var.unique_id] = var
