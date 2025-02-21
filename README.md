@@ -33,6 +33,7 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
     * [Accuracy & Sensitivity Related Options](#accuracy--sensitivity-related-options)
     * [Output Options](#output-options)
     * [Performance Related Options](#performance-related-options)
+    * [Monopogen Related Options](#monopogen-related-options)
     * [Sabre-somatic Options](#sabre-somatic-options)
 * [Citation](#citation)
 

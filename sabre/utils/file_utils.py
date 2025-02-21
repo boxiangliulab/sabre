@@ -293,11 +293,11 @@ def generate_variants(opt, processed_vcf_path):
                 items = line.strip().split(',')
                 chr_, pos, ref, alt = items[:4]
                 
-                svm_score = items[7]
-                ld_score = items[10]
-                baf_score = items[11]
-                depth_ref = items[5]
-                depth_alt = items[6]
+                svm_score = float(items[7])
+                ld_score = float(items[10])
+                baf_score = float(items[11])
+                depth_ref = int(items[5])
+                depth_alt = int(items[6])
 
                 if svm_score < opt.mono_svm: continue
                 if ld_score < opt.ld: continue
