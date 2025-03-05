@@ -290,10 +290,10 @@ def generate_variants(opt, processed_vcf_path):
                 
                 items = line.strip().split(',')
                 chr_, pos, ref, alt = items[:4]
-                if items[10] == 'NA': continue
+                if items[10] == 'NA' and not opt.mono_ignore_ld: continue
                 
                 svm_score = float(items[7])
-                ld_score = float(items[10])
+                ld_score = float(items[10]) if not opt.mono_ignore_ld else 1
                 baf_score = float(items[11])
                 depth_ref = int(items[5])
                 depth_alt = int(items[6])

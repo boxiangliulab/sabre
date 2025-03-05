@@ -173,6 +173,7 @@ def main():
     parser.add_argument("--mono", help="The result putativeSNVs.csv of Monopogen somatic output, used for somatic variation analysis.", default=None)
     parser.add_argument("--mono_svm", help="Threshold on SVM_pos_score in putativeSNVs.csv.", default=0.5, type=float)
     parser.add_argument("--mono_ld", help="Threshold on LDrefine_merged_score in putativeSNVs.csv.", default=0.5, type=float)
+    parser.add_argument("--mono_ignore_ld", help="Threshold on LDrefine_merged_score in putativeSNVs.csv.", default=0.5, type=float)
     parser.add_argument("--mono_baf_u", help="The upper bound on BAF_alt in putativeSNVs.csv.", default=0.5, type=float)
     parser.add_argument("--mono_baf_l", help="The lower bound on BAF_alt in putativeSNVs.csv.", default=0.1, type=float)
     parser.add_argument("--mono_ref", help="Threshold on Dep_ref in putativeSNVs.csv.", default=5, type=int)
