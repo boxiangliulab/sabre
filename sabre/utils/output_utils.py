@@ -77,7 +77,7 @@ def de_duplicate(G:nx.Graph, alleles_list:list[list[str]], flag, variant_allele_
     
     return G
 
-def report_phasing_result(opt, G, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map, variant_allele_map):
+def report_phasing_result(opt, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map, variant_allele_map):
     '''
     Report the phasing result of sabre.
     Nonconflicted nodes and predicted conflicted nodes are reported separately.

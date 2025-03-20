@@ -9,6 +9,17 @@ import collections
 from collections import namedtuple
 import re
 
+from scipy.stats import beta
+
+x = 50  # 0的数量
+y = 60  # 1的数量
+alpha = y + 1
+beta_param = x + 1
+
+# 计算 p 在 [0.4, 0.6] 区间的后验概率
+print(f"p 在 [0.4, 0.6] 之间的置信度为: {confidence:.4f}")
+
+
 QUAL_THRESHOLD = 0
 ALIGNMENT_FILTER = 0
 
@@ -282,7 +293,10 @@ def generate_variants(opt, processed_vcf_path):
     for var in variants:
         vid_var_map[var.unique_id] = var
 
-    somatic_variants = []
+    somatic_variants_for_phasing = []
+    somatic_variants_for_phasing_ids = set()
+    somatic_variants_for_one_two_hit = []
+    somatic_variants_for_one_two_hit_ids = set()
     if opt.mono is not None:
         with open(opt.mono) as f:
             for line in f:
@@ -299,26 +313,36 @@ def generate_variants(opt, processed_vcf_path):
                 depth_alt = int(items[6])
 
                 if svm_score < opt.mono_svm: continue
-                if ld_score < opt.mono_ld: continue
-                if baf_score < opt.mono_baf_l or baf_score > opt.mono_baf_u: continue
                 if depth_alt < opt.mono_alt or depth_ref < opt.mono_ref: continue
+                if ld_score < opt.mono_ld: 
+                    confidence = beta.cdf(0.6, depth_ref+1, depth_alt+1) - beta.cdf(0.4, depth_ref+1, depth_alt+1)
+                    if confidence < 0.5: continue
+                    tmp_variant = create_variant(opt.sep, chr_, pos, '.', ref, alt, 100, '0/1', False)
+                    if tmp_variant.unique_id in vid_var_map.keys():
+                        vid_var_map.pop(tmp_variant.unique_id)
+                    somatic_variants_for_phasing.append(create_variant(opt.sep, chr_, pos, 'somatic', ref, alt, 100, '0/1', False))
+                else:
+                    if baf_score < opt.mono_baf_l or baf_score > opt.mono_baf_u: continue
 
-                tmp_variant = create_variant(opt.sep, chr_, pos, '.', ref, alt, 100, '0/1', False)
-
-                if tmp_variant.unique_id in vid_var_map.keys():
-                    vid_var_map.pop(tmp_variant.unique_id)
-                    
-                somatic_variants.append(create_variant(opt.sep, chr_, pos, 'somatic', ref, alt, 100, '0/1', False))
+                    tmp_variant = create_variant(opt.sep, chr_, pos, '.', ref, alt, 100, '0/1', False)
+                    if tmp_variant.unique_id in vid_var_map.keys():
+                        vid_var_map.pop(tmp_variant.unique_id)
+                    somatic_variants_for_one_two_hit.append(create_variant(opt.sep, chr_, pos, 'somatic', ref, alt, 100, '0/1', False))
 
     print('Received {} Germline variants in total, {} variants taken, {} variants omitted.'.\
         format(total_record_num, total_record_num-filtered_record_num, filtered_record_num))
 
-    print('Received {} Somatic variants in total'.format(len(somatic_variants)))
+    print('Received {} Somatic variants in total, {} recognized for phasing, {} for one/two-hit analysis.'.format(len(somatic_variants_for_phasing)+len(somatic_variants_for_one_two_hit), len(somatic_variants_for_phasing), len(somatic_variants_for_one_two_hit)))
 
-    for var in somatic_variants:
+    for var in somatic_variants_for_phasing:
         vid_var_map[var.unique_id] = var
+        somatic_variants_for_phasing_ids.add(var.unique_id)
+    
+    for var in somatic_variants_for_one_two_hit:
+        vid_var_map[var.unique_id] = var
+        somatic_variants_for_one_two_hit_ids.add(var.unique_id)
 
-    return variants, somatic_variants, vid_var_map
+    return variants, somatic_variants_for_phasing + somatic_variants_for_one_two_hit, somatic_variants_for_phasing_ids, somatic_variants_for_one_two_hit_ids, vid_var_map
            
 
 def load_bam(opt, bed_file):

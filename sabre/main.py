@@ -44,7 +44,7 @@ def sabre(opt, status_dict, return_list = None, status_list=None):
 
     try:
         processed_vcf_file = file_utils.load_vcf(opt)
-        variants, somatic_variants, vid_var_map = file_utils.generate_variants(opt, processed_vcf_file)
+        variants, somatic_variants, somatic_variants_for_phasing_ids, somatic_variants_for_one_two_hit_ids, vid_var_map = file_utils.generate_variants(opt, processed_vcf_file)
         bed_file = file_utils.generate_bed_file(opt, variants, somatic_variants)
 
         output_sam_paths = file_utils.load_bam(opt, bed_file)
@@ -57,13 +57,13 @@ def sabre(opt, status_dict, return_list = None, status_list=None):
 
         allele_subgraphs, total_possible_pairs = graph_utils.find_connected_components(allele_linkage_graph)
 
-        conflicted_graphs, nonconflicted_graphs = graph_utils.find_conflict_graphs(opt, allele_subgraphs, vid_var_map)
+        conflicted_graphs, nonconflicted_graphs = graph_utils.find_conflict_graphs(opt, allele_subgraphs, vid_var_map, somatic_variants_for_phasing_ids)
 
         nonconflicted_nodes, phased_vars = graph_utils.extract_nonconflicted_nodes(nonconflicted_graphs)
         
-        resolved_conflicted_nodes, removed_edges = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, phased_vars)
+        resolved_conflicted_nodes, removed_edges = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, somatic_variants_for_phasing_ids, somatic_variants_for_one_two_hit_ids)
 
-        total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs, correct_variants, genome_coverage = output_utils.report_phasing_result(opt, allele_linkage_graph, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map, variant_allele_map)
+        total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs, correct_variants, genome_coverage = output_utils.report_phasing_result(opt, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map, variant_allele_map)
         if opt.residual_edges:
             output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, variant_allele_map, mean=min_mean, var=min_var, n=min_n)
         if opt.allele_linkage:

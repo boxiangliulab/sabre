@@ -81,7 +81,7 @@ def find_connected_components(G:nx.Graph):
         #total_possible_pairs += math.comb(len(component), 2)
     return subgraphs, total_possible_pairs
 
-def find_conflict_graphs(opt, subgraphs:list[nx.Graph], vid_var_map):
+def find_conflict_graphs(opt, subgraphs:list[nx.Graph], vid_var_map, somatic_variants_for_phasing_ids):
     '''
     Determine whether a graph contains conflict variants, w.r.t. 2 alleles related to 1 variant appears in a single graph.
     Implement this by get the node list of a subgraph, and find the corelated variant of it.
@@ -92,11 +92,15 @@ def find_conflict_graphs(opt, subgraphs:list[nx.Graph], vid_var_map):
     conflicted_graphs, nonconflicted_graphs = [], []
     for sg in subgraphs:
         alleles = list(sg.nodes)
-        if len(alleles) == 1:
+        alleles = list(filter(lambda x: True if 'somatic' not in x.split(':')[0] else True if x.split(':')[0] in somatic_variants_for_phasing_ids else False, sg.nodes))
+        variants = set(filter(lambda x: True if 'somatic' not in x else True if x in somatic_variants_for_phasing_ids else False ,map(lambda x: x.split(':')[0], alleles)))
+        if len(alleles) == 1 or len(variants) == 1:
             continue
-        variants = set(map(lambda x: x.split(':')[0], alleles))
         if len(alleles) == len(variants):
-            nonconflicted_graphs.append(sg)
+            sg = nx.Graph(sg)
+            sg.remove_nodes_from(filter(lambda x: False if 'somatic' not in x.split(':')[0] else False if x.split(':')[0] in somatic_variants_for_phasing_ids else True, sg.nodes))
+            for component in nx.connected_components(sg):
+                nonconflicted_graphs.append(sg.subgraph(component))
             continue
 
         conflicted_graphs.append(sg)
@@ -255,7 +259,7 @@ def calculate_graph_difference(G:nx.Graph, H:nx.Graph):
     G.remove_edges_from(list(H.edges))
     return G
 
-def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]):
+def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], somatic_variants_for_phasing_ids, somatic_variants_for_one_two_hit_ids):
     '''
     First, remove edges with 5% minimum edges weights.
     For sub-graphs with more than 100 nodes, remove no more than 0.2 * #nodes by split_graph_by_common_shortest_path.
@@ -283,6 +287,12 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], phased_vars:set[str]
             else:
                 pickle.dump(sg, open('{}/{}/conflict_graphs/{}.{}.gpickle'.format(opt.output_dir, opt.id, opt.chr, idx), 'wb'))
 
+        sg.remove_nodes_from(filter(lambda x: False if 'somatic' not in x.split(':')[0] else False if x.split(':')[0] in somatic_variants_for_phasing_ids else True, sg.nodes))
+        if find_conflict_alleles(sg) == []:
+            for components in nx.connected_components(sg):
+                resolved_nodes.append(list(sg.nodes))
+            continue
+        
         if len(sg.nodes) > 2:
             edge_weights = list(nx.get_edge_attributes(sg, 'weight').values())
             cut_threshold = np.percentile(edge_weights, opt.edge_threshold)
