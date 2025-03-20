@@ -98,7 +98,7 @@ def find_conflict_graphs(opt, subgraphs:list[nx.Graph], vid_var_map, somatic_var
             continue
         if len(alleles) == len(variants):
             sg = nx.Graph(sg)
-            sg.remove_nodes_from(filter(lambda x: False if 'somatic' not in x.split(':')[0] else False if x.split(':')[0] in somatic_variants_for_phasing_ids else True, sg.nodes))
+            sg.remove_nodes_from(list(filter(lambda x: False if 'somatic' not in x.split(':')[0] else False if x.split(':')[0] in somatic_variants_for_phasing_ids else True, sg.nodes)))
             for component in nx.connected_components(sg):
                 nonconflicted_graphs.append(sg.subgraph(component))
             continue
@@ -287,7 +287,7 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], somatic_variants_for
             else:
                 pickle.dump(sg, open('{}/{}/conflict_graphs/{}.{}.gpickle'.format(opt.output_dir, opt.id, opt.chr, idx), 'wb'))
 
-        sg.remove_nodes_from(filter(lambda x: False if 'somatic' not in x.split(':')[0] else False if x.split(':')[0] in somatic_variants_for_phasing_ids else True, sg.nodes))
+        sg.remove_nodes_from(list(filter(lambda x: False if 'somatic' not in x.split(':')[0] else False if x.split(':')[0] in somatic_variants_for_phasing_ids else True, sg.nodes)))
         if find_conflict_alleles(sg) == []:
             for components in nx.connected_components(sg):
                 resolved_nodes.append(list(sg.nodes))
