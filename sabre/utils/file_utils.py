@@ -11,14 +11,6 @@ import re
 
 from scipy.stats import beta
 
-x = 50  # 0的数量
-y = 60  # 1的数量
-alpha = y + 1
-beta_param = x + 1
-
-# 计算 p 在 [0.4, 0.6] 区间的后验概率
-print(f"p 在 [0.4, 0.6] 之间的置信度为: {confidence:.4f}")
-
 
 QUAL_THRESHOLD = 0
 ALIGNMENT_FILTER = 0
@@ -316,7 +308,7 @@ def generate_variants(opt, processed_vcf_path):
                 if depth_alt < opt.mono_alt or depth_ref < opt.mono_ref: continue
                 if ld_score < opt.mono_ld: 
                     confidence = beta.cdf(0.6, depth_ref+1, depth_alt+1) - beta.cdf(0.4, depth_ref+1, depth_alt+1)
-                    if confidence < 0.5: continue
+                    if confidence < 0.9: continue
                     tmp_variant = create_variant(opt.sep, chr_, pos, '.', ref, alt, 100, '0/1', False)
                     if tmp_variant.unique_id in vid_var_map.keys():
                         vid_var_map.pop(tmp_variant.unique_id)
