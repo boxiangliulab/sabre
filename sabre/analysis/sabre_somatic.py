@@ -11,374 +11,216 @@ import pandas as pd
 import time
 from tqdm import tqdm
 
-import copy
+import subprocess
 
 import multiprocessing
 
-def update_progress_bars(progress_list, total_iterations, n_processes):
-    bars = [tqdm(total=total_iterations+1, position=i) for i in range(n_processes)]
-    # return
-    while True:
-        for i, bar in enumerate(bars):
-            bar.n = progress_list[i]  # 更新tqdm的进度
-            bar.refresh()  # 刷新显示
-        # if sum(progress_list) >= (total_iterations-1) * n_processes:
-        #     break
-        time.sleep(0.1)
-
-def check_in_phase_graph(graphs, graph_path, output_list, rawlink_list, lbd, progress_list, thread_id):
-    total_graphs_nums = len(graphs)
-    
-    for graph in graphs:
-        try:
-            G = pickle.load(open(graph_path+graph, 'rb'))
-
-            variants = set()
-            list(map(lambda x: variants.add(x.split(':')[0]), list(G.nodes)))
-            variants = list(variants)
-            for i in range(len(variants)-1):
-                for j in range(i+1, len(variants)):
-                    var1, var2 = variants[i], variants[j]
-
-                    node_1_0, node_1_1, node_2_0, node_2_1 = var1+':0', var1+':1', var2+':0', var2+':1'
-
-                    if not (node_1_0 in G and node_1_1 in G and node_2_0 in G and node_2_1 in G): continue
-
-                    G_prime = nx.Graph(G)
-                    G_prime.remove_node(node_1_1)
-                    G_prime.remove_node(node_2_1)
-                    if not nx.has_path(G_prime, node_1_0, node_2_0): continue
-
-                    G_prime = nx.Graph(G)
-                    G_prime.remove_node(node_1_0)
-                    G_prime.remove_node(node_2_0)
-                    if not nx.has_path(G_prime, node_1_1, node_2_1): continue
-
-                    G_prime = nx.Graph(G)
-                    G_prime.remove_node(node_1_1)
-                    G_prime.remove_node(node_2_0)
-                    if nx.has_path(G_prime, node_1_0, node_2_1): 
-                        G_prime = nx.Graph(G)
-                        G_prime.remove_node(node_1_0)
-                        G_prime.remove_node(node_2_1)
-                        if nx.has_path(G_prime, node_1_1, node_2_0):
-                            continue
-
-                        _00_cell_count = len(G.edges[node_1_0, node_2_0]['barcodes'].keys()) if (node_1_0, node_2_0) in G.edges else -1
-                        _01_cell_count = len(G.edges[node_1_0, node_2_1]['barcodes'].keys()) if (node_1_0, node_2_1) in G.edges else -1
-                        _11_cell_count = len(G.edges[node_1_1, node_2_1]['barcodes'].keys()) if (node_1_1, node_2_1) in G.edges else -1
-
-                        _00_cell_prime_weight = G.edges[node_1_0, node_2_0]['prime_weight'] if (node_1_0, node_2_0) in G.edges else -1
-                        _01_cell_prime_weight = G.edges[node_1_0, node_2_1]['prime_weight'] if (node_1_0, node_2_1) in G.edges else -1
-                        _11_cell_prime_weight = G.edges[node_1_1, node_2_1]['prime_weight'] if (node_1_1, node_2_1) in G.edges else -1
-
-                        _00_cell_raw_count = G.edges[node_1_0, node_2_0]['raw_read_count'] if (node_1_0, node_2_0) in G.edges else -1
-                        _01_cell_raw_count = G.edges[node_1_0, node_2_1]['raw_read_count'] if (node_1_0, node_2_1) in G.edges else -1
-                        _11_cell_raw_count = G.edges[node_1_1, node_2_1]['raw_read_count'] if (node_1_1, node_2_1) in G.edges else -1
-
-                        if rawlink_list is not None:
-                            if (node_1_0, node_2_0) in G.edges:
-                                for barcode in G.edges[node_1_0, node_2_0]['barcodes'].keys():
-                                    rawlink_list.append('{}\t{}\t{}\n'.format(barcode, node_1_0, node_2_0))
-                            if (node_1_0, node_2_1) in G.edges:
-                                for barcode in G.edges[node_1_0, node_2_1]['barcodes'].keys():
-                                    rawlink_list.append('{}\t{}\t{}\n'.format(barcode, node_1_0, node_2_1))
-                            if (node_1_1, node_2_1) in G.edges:
-                                for barcode in G.edges[node_1_1, node_2_1]['barcodes'].keys():
-                                    rawlink_list.append('{}\t{}\t{}\n'.format(barcode, node_1_1, node_2_1))
+import bisect
+import re
 
 
-                        output_list.append('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(lbd, graph, var1, var2, _00_cell_prime_weight, _01_cell_prime_weight, _11_cell_prime_weight,\
-                                                                                        _00_cell_count, _01_cell_count, _11_cell_count, _00_cell_raw_count, _01_cell_raw_count, _11_cell_raw_count, \
-                                                                                        G.nodes[var1+':0']['allele_read_count'], G.nodes[var1+':1']['allele_read_count'], G.nodes[var2+':0']['allele_read_count'], G.nodes[var2+':1']['allele_read_count']))
-                        continue
+chromosome_map = {}
+gene_dict = {}
 
-                    G_prime = nx.Graph(G)
-                    G_prime.remove_node(node_1_0)
-                    G_prime.remove_node(node_2_1)
-                    if nx.has_path(G_prime, node_1_1, node_2_0): 
-                        G_prime = nx.Graph(G)
-                        G_prime.remove_node(node_1_1)
-                        G_prime.remove_node(node_2_0)
-                        if nx.has_path(G_prime, node_1_0, node_2_1):
-                            continue
-
-                        _00_cell_count = len(G.edges[node_1_0, node_2_0]['barcodes'].keys()) if (node_1_0, node_2_0) in G.edges else -1
-                        _10_cell_count = len(G.edges[node_1_1, node_2_0]['barcodes'].keys()) if (node_1_1, node_2_0) in G.edges else -1
-                        _11_cell_count = len(G.edges[node_1_1, node_2_1]['barcodes'].keys()) if (node_1_1, node_2_1) in G.edges else -1
-
-                        _00_cell_prime_weight = G.edges[node_1_0, node_2_0]['prime_weight'] if (node_1_0, node_2_0) in G.edges else -1
-                        _10_cell_prime_weight = G.edges[node_1_1, node_2_0]['prime_weight'] if (node_1_1, node_2_0) in G.edges else -1
-                        _11_cell_prime_weight = G.edges[node_1_1, node_2_1]['prime_weight'] if (node_1_1, node_2_1) in G.edges else -1
-
-                        _00_cell_raw_count = G.edges[node_1_0, node_2_0]['raw_read_count'] if (node_1_0, node_2_0) in G.edges else -1
-                        _10_cell_raw_count = G.edges[node_1_1, node_2_0]['raw_read_count'] if (node_1_1, node_2_0) in G.edges else -1
-                        _11_cell_raw_count = G.edges[node_1_1, node_2_1]['raw_read_count'] if (node_1_1, node_2_1) in G.edges else -1
-
-                        if rawlink_list is not None:
-                            if (node_1_0, node_2_0) in G.edges:
-                                for barcode in G.edges[node_1_0, node_2_0]['barcodes'].keys():
-                                    rawlink_list.append('{}\t{}\t{}\n'.format(barcode, node_1_0, node_2_0))
-                            if (node_1_1, node_2_0) in G.edges:
-                                for barcode in G.edges[node_1_1, node_2_0]['barcodes'].keys():
-                                    rawlink_list.append('{}\t{}\t{}\n'.format(barcode, node_1_1, node_2_0))
-                            if (node_1_1, node_2_1) in G.edges:
-                                for barcode in G.edges[node_1_1, node_2_1]['barcodes'].keys():
-                                    rawlink_list.append('{}\t{}\t{}\n'.format(barcode, node_1_1, node_2_1))
-
-                        output_list.append('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(lbd, graph, var1, var2, _00_cell_prime_weight, _10_cell_prime_weight, _11_cell_prime_weight,\
-                                                                                        _00_cell_count, _10_cell_count, _11_cell_count, _00_cell_raw_count, _10_cell_raw_count, _11_cell_raw_count, \
-                                                                                        G.nodes[var1+':0']['allele_read_count'], G.nodes[var1+':1']['allele_read_count'], G.nodes[var2+':0']['allele_read_count'], G.nodes[var2+':1']['allele_read_count']))
-
-        except Exception as e:
+def traverse_graph(G, start_node):
+    visited = set()  # 避免重复访问
+    result = set()  # 存储 germline 节点
+    stack = [start_node]  # 使用栈进行深度优先搜索 (DFS)
+    while stack:
+        node = stack.pop()
+        if node in visited:
             continue
-                
-        finally:
-            progress_list[thread_id] += 1
+        visited.add(node)
+        for neighbor in G.neighbors(node):
+            if 'somatic' in neighbor and ':1' in neighbor:
+                return []  # 规则 2：如果遇到 somatic:1，则失败
+            elif 'somatic' in neighbor and ':0' in neighbor:
+                stack.append(neighbor)  # 规则 3：继续遍历 somatic:0
+            else:
+                result.add(neighbor)  # 规则 3：如果是 germline，加入结果列表
+    return list(result)
 
+def find_somatic_variants(opt):
+    graph_base_dir = '{}/{}/conflict_graphs/'.format(opt.output_dir, opt.id)
+    variant_infos = []
 
-def examine_in_phase(opt, lbd):
-    in_phase_output = open('{}/{}/{}.in.phase.hits.txt'.format(opt.output_dir, opt.id, lbd), 'w')
-    print('Processing {} in phase...'.format(lbd))
-    graph_path = '{}/{}/conflict_graphs/'.format(opt.output_dir, lbd)
-    if not os.path.exists(graph_path): return
-    graphs = os.listdir(graph_path)
-    total_iterations = int(len(graphs)/opt.threads) + 1
-
-    with multiprocessing.Manager() as manager:
-        output_list = manager.list()
-        rawlink_list = manager.list() if opt.rawlink else None
-        progress_list = manager.list(([0] * (opt.threads-1)))
-        
-        processes = []
-        for i in range(opt.threads):
-            p = multiprocessing.Process(target=check_in_phase_graph, args=(graphs[i::opt.threads-1], graph_path, output_list, rawlink_list, lbd, progress_list, i)) if i != opt.threads-1 else multiprocessing.Process(target=update_progress_bars, args=(progress_list, total_iterations, opt.threads-1))
-            p.deamon = True if i == opt.threads-1 else False
-            processes.append(p)
-            p.start()
-
-        for p in processes[:-1]:
-            p.join()
-        
-        processes[-1].kill()
-
-        list(map(in_phase_output.write, set(output_list)))
-        if rawlink_list is not None:
-            with open('{}/{}/{}.in.phase.hits.raw.linkage.txt'.format(opt.output_dir, opt.id, lbd), 'w') as f:
-                list(map(f.write, rawlink_list))
-
-    in_phase_output.close()
-
-
-def check_out_of_phase_graph(graphs, graph_path, output_list, rawlink_list, lbd, progress_list, thread_id):
-    total_graphs_nums = len(graphs)
-    
-    for graph in graphs:
+    for graph_path in os.listdir(graph_base_dir):
+        if 'somatic' not in graph_path: continue
         try:
-            G = pickle.load(open(graph_path+graph, 'rb'))
-
-            variants = set()
-            list(map(lambda x: variants.add(x.split(':')[0]), list(G.nodes)))
-            variants = list(variants)
-            for i in range(len(variants)-1):
-                for j in range(i+1, len(variants)):
-                    var1, var2 = variants[i], variants[j]
-
-                    node_1_0, node_1_1, node_2_0, node_2_1 = var1+':0', var1+':1', var2+':0', var2+':1'
-
-                    if not (node_1_0 in G and node_1_1 in G and node_2_0 in G and node_2_1 in G): continue
-
-                    G_prime = nx.Graph(G)
-                    G_prime.remove_node(node_1_1)
-                    G_prime.remove_node(node_2_0)
-                    if not nx.has_path(G_prime, node_1_0, node_2_1): continue
-
-                    G_prime = nx.Graph(G)
-                    G_prime.remove_node(node_1_0)
-                    G_prime.remove_node(node_2_1)
-                    if not nx.has_path(G_prime, node_1_1, node_2_0): continue
-
-                    G_prime = nx.Graph(G)
-                    G_prime.remove_node(node_1_1)
-                    G_prime.remove_node(node_2_1)
-                    if not nx.has_path(G_prime, node_1_0, node_2_0): continue
-
-                    G_prime = nx.Graph(G)
-                    G_prime.remove_node(node_1_0)
-                    G_prime.remove_node(node_2_0)
-                    if nx.has_path(G_prime, node_1_1, node_2_1): continue
-
-                    _00_cell_count = len(G.edges[node_1_0, node_2_0]['barcodes'].keys()) if (node_1_0, node_2_0) in G.edges else -1
-                    _01_cell_count = len(G.edges[node_1_0, node_2_1]['barcodes'].keys()) if (node_1_0, node_2_1) in G.edges else -1
-                    _10_cell_count = len(G.edges[node_1_1, node_2_0]['barcodes'].keys()) if (node_1_1, node_2_0) in G.edges else -1
-
-                    _00_cell_prime_weight = G.edges[node_1_0, node_2_0]['prime_weight'] if (node_1_0, node_2_0) in G.edges else -1
-                    _01_cell_prime_weight = G.edges[node_1_0, node_2_1]['prime_weight'] if (node_1_0, node_2_1) in G.edges else -1
-                    _10_cell_prime_weight = G.edges[node_1_1, node_2_0]['prime_weight'] if (node_1_1, node_2_0) in G.edges else -1
-
-                    _00_cell_raw_count = G.edges[node_1_0, node_2_0]['raw_read_count'] if (node_1_0, node_2_0) in G.edges else -1
-                    _01_cell_raw_count = G.edges[node_1_0, node_2_1]['raw_read_count'] if (node_1_0, node_2_1) in G.edges else -1
-                    _10_cell_raw_count = G.edges[node_1_1, node_2_0]['raw_read_count'] if (node_1_1, node_2_0) in G.edges else -1
-
-                    if rawlink_list is not None:
-                        if (node_1_0, node_2_0) in G.edges:
-                            for barcode in G.edges[node_1_0, node_2_0]['barcodes'].keys():
-                                rawlink_list.append('{}\t{}\t{}\n'.format(barcode, node_1_0, node_2_0))
-                        if (node_1_1, node_2_0) in G.edges:
-                            for barcode in G.edges[node_1_1, node_2_0]['barcodes'].keys():
-                                rawlink_list.append('{}\t{}\t{}\n'.format(barcode, node_1_1, node_2_0))
-                        if (node_1_0, node_2_1) in G.edges:
-                            for barcode in G.edges[node_1_0, node_2_1]['barcodes'].keys():
-                                rawlink_list.append('{}\t{}\t{}\n'.format(barcode, node_1_0, node_2_1))
-
-                    output_list.append('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format(lbd, graph, var1, var2, _00_cell_prime_weight, _01_cell_prime_weight, _10_cell_prime_weight,\
-                                                                                    _00_cell_count, _01_cell_count, _10_cell_count, _00_cell_raw_count, _01_cell_raw_count, _10_cell_raw_count, \
-                                                                                    G.nodes[var1+':0']['allele_read_count'], G.nodes[var1+':1']['allele_read_count'], G.nodes[var2+':0']['allele_read_count'], G.nodes[var2+':1']['allele_read_count']))
-
+            G = pickle.load(open(os.path.join(graph_base_dir, graph_path), 'rb'))
+            for node in G.nodes:
+                if 'somatic' in node:
+                    chr_, pos, _, ref_g, alt_g = node.split(':')[0].split('_')
+                    pos = int(pos)
+                    result = find_gene(chr_, pos)
+                    if result is None: continue
+                    gene, (chr_, start, end) = result
+                    variant_infos.append(((chr_, pos, ref_g, alt_g), gene, (start, end), os.path.join(graph_base_dir, graph_path)))
         except Exception as e:
             print(e)
+    
+    return variant_infos
+
+def find_gene(chromosome, pos):
+    global chromosome_map, gene_dict
+
+    if chromosome not in chromosome_map:
+        return None  # 该染色体没有基因
+    
+    gene_list = chromosome_map[chromosome]  # 获取该染色体的基因区间
+    starts = [start for start, _, _ in gene_list]  # 仅取 start 进行二分查找
+    
+    # 二分查找第一个大于pos的start索引
+    idx = bisect.bisect_right(starts, pos) - 1
+    
+    if idx >= 0:
+        start, end, gene = gene_list[idx]
+        if start <= pos <= end:
+            return gene, gene_dict[gene]  # pos 落在基因区域
+    
+    return None
+
+def analysis_somatic_variant(opt, variant_infos):
+    in_phase_germline_missense_pairs = set()
+    out_phase_germline_missense_pairs = set()
+    chromosome = opt.chr
+    for (chr_, pos, ref_g, alt_g), gene, (start, end), graph_path in variant_infos:
+
+        sG = pickle.load(open(graph_path, 'rb'))
+
+        somatic_variant = f'{chr_}_{pos}_somatic_{ref_g}_{alt_g}'
+        if somatic_variant+':1' not in sG.nodes or somatic_variant+':0' not in sG.nodes:
             continue
-                
-        finally:
-            progress_list[thread_id] += 1
 
-def examine_out_of_phase(opt, lbd):
-    out_of_phase_output = open('{}/{}/{}.out.of.phase.hits.txt'.format(opt.output_dir, opt.id, lbd), 'w')
-    print('Processing {} out-of-phase...'.format(lbd))
-    graph_path = '{}/{}/conflict_graphs/'.format(opt.output_dir, lbd)
-    if not os.path.exists(graph_path): return
-    graphs = os.listdir(graph_path)
-    total_iterations = int(len(graphs)/(opt.threads-1)) + 1
+        cmd = f'bcftools view -r {chromosome}:{start}-{end} {opt.vcf}'
+        result = subprocess.run(cmd.split(' '), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        extracted_vcf = result.stdout.decode()
+        lines = list(filter(lambda x: not x.startswith('#'), extracted_vcf.strip().split('\n')))
+        if len(lines) == 0: continue
 
-    with multiprocessing.Manager() as manager:
-        output_list = manager.list()
-        rawlink_list = manager.list() if opt.rawlink else None
-        progress_list = manager.list(([0] * (opt.threads-1)))
+        upper_half = []
+        lower_half = []
+
+        germline_variants = []
+
+        for line in lines:
+            chr_, pos, _, ref, alt, _, _, _, _, gt = line.strip().split('\t')
+            if gt == '0|0' or gt == '1|1': continue
+            germline_variants.append('_'.join([chr_, pos, '.', ref, alt])+':1')
+            left, right = gt.strip().split('|')
+            upper_half.append('_'.join([chr_,pos,'.',ref, alt]) + f':{left}')
+            lower_half.append('_'.join([chr_,pos,'.',ref, alt]) + f':{right}')
+
+        upper_half_set = set(upper_half)
+        lower_half_set = set(lower_half)
+
+        if len(upper_half_set) <= 1: continue
         
-        processes = []
-        for i in range(opt.threads):
-            p = multiprocessing.Process(target=check_out_of_phase_graph, args=(graphs[i::opt.threads-1], graph_path, output_list, rawlink_list, lbd, progress_list, i)) if i != opt.threads-1 else multiprocessing.Process(target=update_progress_bars, args=(progress_list, total_iterations, opt.threads-1))
-            p.deamon = True if i == opt.threads-1 else False
-            processes.append(p)
-            p.start()
+        upper_half_dict = [dict() for i in upper_half]
+        lower_half_dict = [dict() for i in lower_half]
 
-        for p in processes[:-1]:
-            p.join()
+        if len(germline_variants) == 0: continue
+
+        for missense_variant in germline_variants:
+            for index, upper_var in enumerate(upper_half):
+                if missense_variant in upper_half_set:
+                    upper_half_dict[index][missense_variant.split(':')[0]] = True
+                    lower_half_dict[index][missense_variant.split(':')[0]] = False
+                else:
+                    upper_half_dict[index][missense_variant.split(':')[0]] = False
+                    lower_half_dict[index][missense_variant.split(':')[0]] = True
+
+
+        G = nx.Graph()
+
+        for node, data in zip(upper_half, upper_half_dict):
+            G.add_node(node)
+            G.nodes[node]['missense'] = data
+
+        for node, data in zip(lower_half, lower_half_dict):
+            G.add_node(node)
+            G.nodes[node]['missense'] = data
+
+        for i in range(len(upper_half)-1):
+            # for j in range(1, len(lower_half)):
+            G.add_edge(upper_half[i], upper_half[i+1])
+            G.add_edge(lower_half[i], lower_half[i+1])
+
+        somatic_node = somatic_variant + ':0'
+        for neighbor in sG.neighbors(somatic_node):
+            G.add_edge(somatic_node, neighbor)
+            G[somatic_node][neighbor]['barcodes'] = sG[somatic_node][neighbor]['barcodes']
         
-        print('All processes Finished')
-        processes[-1].kill()
+        somatic_node = somatic_variant + ':1'
+        for neighbor in sG.neighbors(somatic_node):
+            G.add_edge(somatic_node, neighbor)
+            G[somatic_node][neighbor]['barcodes'] = sG[somatic_node][neighbor]['barcodes']
 
-        list(map(out_of_phase_output.write, set(output_list)))
-        if rawlink_list is not None:
-            with open('{}/{}/{}.out.of.phase.hits.raw.linkage.txt'.format(opt.output_dir, opt.id, lbd), 'w') as f:
-                list(map(f.write, rawlink_list))
+        in_phase_normal_cells = set()
+        in_phase_mutate_cells = set()
 
-    out_of_phase_output.close()
+        out_phase_normal_cells = set()
+        out_phase_mutate_cells = set()
 
+        for missense_variant in germline_variants:
+            missense_variant = missense_variant.split(':')[0]
+            somatic_alt_connect_to_missense = []
+            for neighbor in traverse_graph(G, somatic_variant+':1'):
+                if 'somatic' in neighbor: continue
+                if 'missense' not in G.nodes[neighbor]:
+                    somatic_alt_connect_to_missense = []
+                    break
+                somatic_alt_connect_to_missense.append(G.nodes[neighbor]['missense'][missense_variant])
 
+            if (any(somatic_alt_connect_to_missense) and not all(somatic_alt_connect_to_missense)) or len(somatic_alt_connect_to_missense) == 0: 
+                continue
 
-def preprocess(opt, output_file):
-    print('Preprocessing {}...'.format(output_file))
-    potential_df = pd.read_csv('{}/{}/{}.txt'.format(opt.output_dir, opt.id, output_file), sep='\t', header=None, names=['Sample', 'File', 'Var1', 'Var2', '00', '01', '10', '00_cell', '01_cell', '10_cell', '00_raw_count', '01_raw_count', '10_raw_count', 'Var1:0', 'Var1:1', 'Var2:0', 'Var2:1'])
+            if all(somatic_alt_connect_to_missense):
+                # in phase
+                for node in traverse_graph(G, somatic_variant+':0'):
+                    if 'somatic' in node: continue
+                    if 'missense' not in G.nodes[node]: continue
+                    if G.nodes[node]['missense'][missense_variant]:
+                        in_phase_normal_cells |= set(G[somatic_variant+':0'][node]['barcodes'].keys())
+                for node in traverse_graph(G, somatic_variant+':1'):
+                    if 'somatic' in node: continue
+                    if 'missense' not in G.nodes[node]: continue
+                    if G.nodes[node]['missense'][missense_variant]:
+                        in_phase_mutate_cells |= set(G[somatic_variant+':1'][node]['barcodes'].keys())
+            in_phase_germline_missense_pairs.add((opt.id, missense_variant, somatic_variant, gene))
 
-    potential_df = potential_df[['Sample', 'Var1', 'Var2', '00', '01', '10', '00_cell', '01_cell', '10_cell', '00_raw_count', '01_raw_count', '10_raw_count', 'Var1:0', 'Var1:1', 'Var2:0', 'Var2:1']]
-    potential_df['Sample'] = potential_df['Sample'].apply(lambda x: x if not x.endswith('_002') else x[:x.index('_002')])
-    potential_df = potential_df.groupby(['Sample', 'Var1', 'Var2'], as_index=False).agg(sum)
+            if not any(somatic_alt_connect_to_missense):
+                # out of phase
+                for node in traverse_graph(G, somatic_variant+':0'):
+                    if 'somatic' in node: continue
+                    if 'missense' not in G.nodes[node]: continue
+                    if not G.nodes[node]['missense'][missense_variant]:
+                        out_phase_normal_cells |= set(G[somatic_variant+':0'][node]['barcodes'].keys())
+                for node in traverse_graph(G, somatic_variant+':1'):
+                    if 'somatic' in node: continue
+                    if 'missense' not in G.nodes[node]: continue
+                    if not G.nodes[node]['missense'][missense_variant]:
+                        out_phase_mutate_cells |= set(G[somatic_variant+':1'][node]['barcodes'].keys())
+            out_phase_germline_missense_pairs.add((opt.id, missense_variant, somatic_variant, gene))
 
-    print(potential_df.head())
+    with open(f'{opt.output_dir}/{opt.id}/{opt.chr}.in.phase.details.tsv', 'w') as f:
+        f.write('sample\tgermline\tsomatic\tgene\n')
+        for (sample, missense_variant, somatic_variant, gene) in in_phase_germline_missense_pairs:
+            f.write(f'{sample}\t{missense_variant}\t{somatic_variant}\t{gene}\n')
 
-    def calculate_inherit_ratio(group):
-        _00_cell, _01_cell, _10_cell = group[6], group[7], group[8]
-        if _10_cell > _01_cell:
-            return _00_cell / _10_cell
-        else:
-            return _00_cell / _01_cell
-
-    def calculate_somatic_ratio(group):
-        _00_cell, _01_cell, _10_cell = group[6], group[7], group[8]
-        if _10_cell > _01_cell:
-            return round(_01_cell / _10_cell, 7)
-        else:
-            return round(_10_cell / _01_cell, 7)
-        
-    def calculate_minor_freq(group):
-        _00_cell, _01_cell, _10_cell = group['00_cell'], group['01_cell'], group['10_cell']
-        return min(_00_cell, _10_cell , _01_cell)
-        
-
-    def sum_reads(group):
-        _00, _01, _10 = group['00'], group['01'], group['10']
-        return sum([_00, _01, _10])
-
-    def sum_counts(group):
-        _00, _01, _10 = group['00_raw_count'], group['01_raw_count'], group['10_raw_count']
-        return sum([_00, _01, _10])
-
-    potential_df.to_csv('{}/{}/{}.csv'.format(opt.output_dir, opt.id, output_file), index=False)
-
-def annotate(opt, output_file, gtf):
-    print('Annotating {}...'.format(output_file))
-    selected_pairs = pd.read_csv('{}/{}/{}.csv'.format(opt.output_dir, opt.id, output_file), sep=',')
-    if selected_pairs.empty:
-        print(f"No result for {output_file}")
-        return 
-    # selected_pairs = pd.read_csv('rua.csv', sep=',')
-
-    var1, var2 = selected_pairs['Var1'].tolist(), selected_pairs['Var2'].tolist()
-    vars_ = var1 + var2
-    vars_ = set(vars_)
-
-    with open('{}/{}/sites.bed'.format(opt.output_dir, opt.id), 'w') as f:
-        list(map(lambda x:f.write('{}\t{}\t{}\n'.format(x.split('_')[0], x.split('_')[1], int(x.split('_')[1])+1)), vars_))
-
-    import subprocess
-
-    if gtf.endswith('.gtf.gz'):
-        gtf_for_bedtools = gtf[gtf.index('.gz')]
-        cmd = f'zcat {gtf} > {gtf_for_bedtools}'
-
-
-    else:
-        gtf_for_bedtools = gtf
-
-    if opt.cds:
-        cmd = 'bedtools intersect -a {}/{}/sites.bed -b {} -wa -wb | egrep "CDS" > {}/{}/annotated_sites.bed'.format(opt.output_dir, opt.id ,gtf_for_bedtools, opt.output_dir, opt.id)
-    else:
-        cmd = 'bedtools intersect -a {}/{}/sites.bed -b {} -wa -wb > {}/{}/annotated_sites.bed'.format(opt.output_dir, opt.id, gtf_for_bedtools, opt.output_dir, opt.id)
-    subprocess.check_call(cmd, shell=True)
-
-    import re
-    gene_name_re = re.compile(r'gene_name "(.*?)";')
-    f = open('{}/{}/annotated_sites.bed'.format(opt.output_dir, opt.id))
-
-    pos_gene_map = {}
-
-    for line in f.readlines():
-        items = line.strip().split('\t')
-        chr_, pos, gene = items[0], items[1], gene_name_re.findall(line)[0]
-        pos_gene_map['_'.join([chr_, pos])] = gene
-
-    genes = set(pos_gene_map.values())
-
-
-    genes = list(filter(lambda x:'ENSG' not in x, genes))
-    list(map(lambda x: print(x, end=' '), genes))
-
-    with open('{}/{}/{}.genes.list'.format(opt.output_dir, opt.id, output_file), 'w') as f:
-        list(map(lambda x: f.write('{} '.format(x)), genes))
-
-    def find_corresponding_gene(group):
-        var1 = group['Var1'][:group['Var1'].index('_.')]
-        if var1 not in pos_gene_map: return False
-        return False if pos_gene_map[var1] not in genes else pos_gene_map[var1]
-
-    selected_pairs['gene'] = selected_pairs.apply(find_corresponding_gene, axis=1)
-    selected_pairs = selected_pairs[selected_pairs['gene']!=False]
-    selected_pairs.to_csv('{}/{}/{}.annotated.csv'.format(opt.output_dir, opt.id, output_file), sep='\t', index=False)
+    with open(f'{opt.output_dir}/{opt.id}/{opt.chr}.out.of.phase.details.tsv', 'w') as f:
+        f.write('sample\tgermline\tsomatic\tgene\n')
+        for (sample, missense_variant, somatic_variant, gene) in out_phase_germline_missense_pairs:
+            f.write(f'{sample}\t{missense_variant}\t{somatic_variant}\t{gene}\n')
 
 def main():
+
+    global chromosome_map, gene_dict
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--id", help="Input ID", required=True)
+    parser.add_argument("--vcf", help="The germline VCF file of `id`", required=True)
+    parser.add_argument("--chr", help="Indicate the chromosome, on which the sabre-somatic will perform one-two hit analysis")
     parser.add_argument("--output_dir", help="Path to output directory, should be the same as sabre --output_dir. Default ./output", required=False, default='./output')
     parser.add_argument("--threads", help="Multithread number", type=int, default=1)
     parser.add_argument("--rawlink", help="Output raw linkage per cell per variant pair", action='store_true')
@@ -387,6 +229,9 @@ def main():
     opt = parser.parse_args()
 
     # Check Arguments
+    if not os.path.exists(opt.vcf):
+        raise ValueError(f"VCF file not found: {opt.vcf}. Please check input argument --vcf")
+
     if not os.path.exists(os.path.join(opt.output_dir, opt.id)):
         raise ValueError("File not found: {}. Please check input argument --id and --output_dir".format(opt.output_dir, opt.id))
     
@@ -400,14 +245,31 @@ def main():
     
     if not os.path.exists(opt.gtf):
         raise ValueError("File not found: {}. Please check input argument --gtf".format(opt.gtf))
+    
 
-    examine_in_phase(opt, opt.id)
-    preprocess(opt, '{}.in.phase.hits'.format(opt.id))
-    annotate(opt, '{}.in.phase.hits'.format(opt.id), opt.gtf)
+    gene_name_re = re.compile('gene_name "(.*?)";')
 
-    examine_out_of_phase(opt, opt.id)
-    preprocess(opt, '{}.out.of.phase.hits'.format(opt.id))
-    annotate(opt, '{}.out.of.phase.hits'.format(opt.id), opt.gtf)
+    gene_dict = {}
+    with open(opt.gtf) as f:
+        for line in f:
+            if 'HAVANA\tgene' not in line:
+                continue
+            gene_name = gene_name_re.search(line).group(1)
+            chr_, _, _, start, end = line.split('\t')[:5]
+            gene_dict[gene_name] = (chr_, int(start), int(end))
+
+    chromosome_map = {}
+    for gene, (chr_, start, end) in gene_dict.items():
+        if chr_ not in chromosome_map:
+            chromosome_map[chr_] = []
+        chromosome_map[chr_].append((start, end, gene))
+
+    for chr_ in chromosome_map:
+        chromosome_map[chr_].sort()
+
+
+    variant_infos = find_somatic_variants(opt)
+    analysis_somatic_variant(opt, variant_infos)
 
 if __name__ == '__main__':
     main()
