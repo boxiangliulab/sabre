@@ -222,10 +222,7 @@ def main():
     parser.add_argument("--vcf", help="The germline VCF file of `id`", required=True)
     parser.add_argument("--chr", help="Indicate the chromosome, on which the sabre-somatic will perform one-two hit analysis")
     parser.add_argument("--output_dir", help="Path to output directory, should be the same as sabre --output_dir. Default ./output", required=False, default='./output')
-    parser.add_argument("--threads", help="Multithread number", type=int, default=1)
-    parser.add_argument("--rawlink", help="Output raw linkage per cell per variant pair", action='store_true')
     parser.add_argument("--gtf", help="Input GTF file. We recommend you to input a .gtf file rather than a .gtf.gz file, because sabre-somatic will have to depress the .gtf.gz file everytime you input a compressed gtf file.", required=True)
-    parser.add_argument("--cds", help="If specified, only mutations on CDS will be phased.", action='store_true')
     opt = parser.parse_args()
 
     # Check Arguments
@@ -234,11 +231,6 @@ def main():
 
     if not os.path.exists(os.path.join(opt.output_dir, opt.id)):
         raise ValueError("File not found: {}. Please check input argument --id and --output_dir".format(opt.output_dir, opt.id))
-    
-    if opt.threads < 1:
-        raise ValueError("Thread number cannot be less than 1!")
-    elif opt.threads == 1:
-        opt.threads = 2
     
     if not opt.gtf.endswith('.gtf') and not opt.gtf.endswith('.gtf.gz'):
         raise ValueError("Invalid argument for --gtf. Please give a valid .gtf file or .gtf.gz file.")
