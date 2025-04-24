@@ -175,6 +175,15 @@ def analysis_somatic_variant(opt, variant_infos):
             if (any(somatic_alt_connect_to_missense) and not all(somatic_alt_connect_to_missense)) or len(somatic_alt_connect_to_missense) == 0: 
                 continue
 
+            support_cells = []
+            support_weights = []
+            for neighbor in nx.neighbors(G, somatic_variant + ':1'):
+                barcode = G[somatic_variant+':1'][neighbor]['barcodes']
+                support_cells+=list(barcode.keys())
+                support_weights+=list(barcode.values())
+            
+            if len(support_cells) < opt.cells or sum(support_weights) < opt.reads: continue
+
             if all(somatic_alt_connect_to_missense):
                 # in phase
                 for node in traverse_graph(G, somatic_variant+':0'):
@@ -187,7 +196,7 @@ def analysis_somatic_variant(opt, variant_infos):
                     if 'missense' not in G.nodes[node]: continue
                     if G.nodes[node]['missense'][missense_variant]:
                         in_phase_mutate_cells |= set(G[somatic_variant+':1'][node]['barcodes'].keys())
-            in_phase_germline_missense_pairs.add((opt.id, missense_variant, somatic_variant, gene))
+            in_phase_germline_missense_pairs.add((opt.id, missense_variant, somatic_variant, gene, ','.join(support_cells), sum(support_weights)))
 
             if not any(somatic_alt_connect_to_missense):
                 # out of phase
@@ -204,14 +213,14 @@ def analysis_somatic_variant(opt, variant_infos):
             out_phase_germline_missense_pairs.add((opt.id, missense_variant, somatic_variant, gene))
 
     with open(f'{opt.output_dir}/{opt.id}/{opt.chr}.in.phase.details.tsv', 'w') as f:
-        f.write('sample\tgermline\tsomatic\tgene\n')
-        for (sample, missense_variant, somatic_variant, gene) in in_phase_germline_missense_pairs:
-            f.write(f'{sample}\t{missense_variant}\t{somatic_variant}\t{gene}\n')
+        f.write('sample\tgermline\tsomatic\tgene\tcells\tsupports\n')
+        for (sample, missense_variant, somatic_variant, gene, cells, supports) in in_phase_germline_missense_pairs:
+            f.write(f'{sample}\t{missense_variant}\t{somatic_variant}\t{gene}\t{cells}\t{supports}\n')
 
     with open(f'{opt.output_dir}/{opt.id}/{opt.chr}.out.of.phase.details.tsv', 'w') as f:
-        f.write('sample\tgermline\tsomatic\tgene\n')
-        for (sample, missense_variant, somatic_variant, gene) in out_phase_germline_missense_pairs:
-            f.write(f'{sample}\t{missense_variant}\t{somatic_variant}\t{gene}\n')
+        f.write('sample\tgermline\tsomatic\tgene\tcells\tsupports\n')
+        for (sample, missense_variant, somatic_variant, gene, cells, supports) in out_phase_germline_missense_pairs:
+            f.write(f'{sample}\t{missense_variant}\t{somatic_variant}\t{gene}\t{cells}\t{supports}\n')
 
 def main():
 
@@ -223,6 +232,8 @@ def main():
     parser.add_argument("--chr", help="Indicate the chromosome, on which the sabre-somatic will perform one-two hit analysis")
     parser.add_argument("--output_dir", help="Path to output directory, should be the same as sabre --output_dir. Default ./output", required=False, default='./output')
     parser.add_argument("--gtf", help="Input GTF file. We recommend you to input a .gtf file rather than a .gtf.gz file, because sabre-somatic will have to depress the .gtf.gz file everytime you input a compressed gtf file.", required=True)
+    parser.add_argument("--cells", help="Threshold on number of supporting cells.", default=1)
+    parser.add_argument("--reads", help="Threshold on number of supporting reads", default=5)
     opt = parser.parse_args()
 
     # Check Arguments

@@ -37,6 +37,7 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
     * [Sabre-somatic Options](#sabre-somatic-options)
 * [Citation](#citation)
 
+
  ## Overall Structure
  <details>
  <summary>Overall Structure</summary>
@@ -239,7 +240,7 @@ where `support` represents the number of mRNAs supporting this pair of allele in
 
 For detailed output, and graphical demonstration of ALGs (allele linkage graph), specify `--verbose`. All the conflicted ALGs will be stored in `<output_dir>/<id>/conflict_graphs_graphml/*.graphml`. The resolved conflicted ALGs will be stored in `<output_dir>/<id>/resolved_conflict_graphs_graphml/*.graphml`. The `.graphml` file can be further visualized and analysed using [Gephi](https://gephi.org/).
 
- ### Sabre for somatic variation analysis
+ ### Sabre-somatic: Sabre for somatic variation analysis
 ----
 
 To perform somatic variations analysis in the paper, you first need to specify `--output_conflict`.
@@ -247,24 +248,25 @@ To perform somatic variations analysis in the paper, you first need to specify `
 And to perform **in-phase** and **out-of-phase** detection, run the following command
 ```bash
 # For somatic variation analysis
-$ sabre-somatic --id <id> --gtf <path-to-gtf>
+$ sabre-somatic --id <id> --gtf <path-to-gtf> --vcf <path-to-vcf> --chr <chromosome>
 ```
 An example GTF file could be downloaded [here](https://www.gencodegenes.org/human/). 
 
 The script will generate two outputs: 
-* in.phase.hits.annotated.csv
-* out.of.phase.hits.annotated.csv
+* `chr*.in.phase.hits.annotated.csv`
+* `chr*.out.of.phase.hits.annotated.csv`
 
 A typical example of output is
 ```tsv
-#out.of.phase.hits.annotated.csv
-Sample	Var1	Var2	00	01	10	00_cell	01_cell	10_cell	00_raw_count	01_raw_count	10_raw_count	Var1:0	Var1:1	Var2:0	Var2:1	inherit_ratio	somatic_ratio	minor_freq	reads_sum	raw_reads_count_sum	gene
-Sample1	chr12_10435855_._A_G	chr12_10435982_._T_C	3	70	14	3	24	13	3	74	14	383	167	186	310	0.125	0.5416667	3	87	91	KLRC2
-Sample2	chr12_10435931_._C_G	chr12_10435982_._T_C	21	87	63	20	26	34	52	95	206	478	211	186	310	0.5882352941176471	0.7647059	20	171	353	KLRC2
+#chr1.out.of.phase.hits.annotated.csv
+sample  germline        somatic gene
+Sample1     chr1_36477883_._C_T     chr1_36477355_somatic_T_C       CSF3R
+Sample1     chr1_226070730_._G_A    chr1_226066281_somatic_G_C      H3-3A
+Sample1     chr1_30752875_._C_T     chr1_30753519_somatic_C_T       LAPTM5
 ```
-where each line represents a in/out-of-phase variant pair, `00/01/10` represents mRNA count of corresponding variant configuration, and `00/01/10_cell` represents the cell number count. `00/01/10_raw_count` reprensents corresponding read count in the BAM file. `Var0/1:0/1` represents the deduplicated read depth of each allele.
+where each line represents a in/out-of-phase variant pair. `germline` column represents germline variants, `somatic` column represents somatic variants and `gene` column represents the gene name on which the event occurs.
 
-You should perform further custom filtering to get reliable analysis results.
+Notablly, all the germline variants and somatic variants are not filtered by CADD score nor missense/synonymous. User may perform further filtering theirselves.
 
  ### Sabre for RNA-editing analysis
 ----
