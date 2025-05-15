@@ -1,23 +1,16 @@
-# python ~/scratch/sabre/Faser-scRNA-main/sabre/analysis/sabre_somatic.py --id liu-2024 --threads 47 --gtf ~/scratch/refdata-gex-GRCh38-2024-A/genes/genes.gtf
-
 import networkx as nx
-import multiprocessing.managers
 import os
 import pickle
 
+import pysam
 import argparse
-import pandas as pd
-
-import time
-from tqdm import tqdm
 
 import subprocess
-
-import multiprocessing
-
 import bisect
 import re
 
+
+import time
 
 chromosome_map = {}
 gene_dict = {}
@@ -59,6 +52,7 @@ def find_somatic_variants(opt):
         except Exception as e:
             print(e)
     
+    # print(variant_infos)
     return variant_infos
 
 def find_gene(chromosome, pos):
@@ -84,6 +78,7 @@ def analysis_somatic_variant(opt, variant_infos):
     in_phase_germline_missense_pairs = set()
     out_phase_germline_missense_pairs = set()
     chromosome = opt.chr
+    vcf = pysam.VariantFile(opt.vcf)
     for (chr_, pos, ref_g, alt_g), gene, (start, end), graph_path in variant_infos:
 
         sG = pickle.load(open(graph_path, 'rb'))
@@ -92,11 +87,7 @@ def analysis_somatic_variant(opt, variant_infos):
         if somatic_variant+':1' not in sG.nodes or somatic_variant+':0' not in sG.nodes:
             continue
 
-        cmd = f'bcftools view -r {chromosome}:{start}-{end} {opt.vcf}'
-        result = subprocess.run(cmd.split(' '), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        extracted_vcf = result.stdout.decode()
-        lines = list(filter(lambda x: not x.startswith('#'), extracted_vcf.strip().split('\n')))
-        if len(lines) == 0: continue
+        lines = list(vcf.fetch(chromosome, start, end))
 
         upper_half = []
         lower_half = []
@@ -104,12 +95,13 @@ def analysis_somatic_variant(opt, variant_infos):
         germline_variants = []
 
         for line in lines:
-            chr_, pos, _, ref, alt, _, _, _, _, gt = line.strip().split('\t')
-            if gt == '0|0' or gt == '1|1': continue
-            germline_variants.append('_'.join([chr_, pos, '.', ref, alt])+':1')
-            left, right = gt.strip().split('|')
-            upper_half.append('_'.join([chr_,pos,'.',ref, alt]) + f':{left}')
-            lower_half.append('_'.join([chr_,pos,'.',ref, alt]) + f':{right}')
+            if not line: continue
+            if line.samples[0]['GT'] in [(0, 0), (1, 1)]:
+                continue
+            germline_variants.append('_'.join([chr_, str(line.pos), '.', line.ref, line.alts[0]])+':1')
+            left, right = line.samples[0]['GT']
+            upper_half.append('_'.join([chr_,str(line.pos),'.',line.ref, line.alts[0]]) + f':{left}')
+            lower_half.append('_'.join([chr_,str(line.pos),'.',line.ref, line.alts[0]]) + f':{right}')
 
         upper_half_set = set(upper_half)
         lower_half_set = set(lower_half)
@@ -150,11 +142,13 @@ def analysis_somatic_variant(opt, variant_infos):
         for neighbor in sG.neighbors(somatic_node):
             G.add_edge(somatic_node, neighbor)
             G[somatic_node][neighbor]['barcodes'] = sG[somatic_node][neighbor]['barcodes']
+            G[somatic_node][neighbor]['raw_read_count'] = sG[somatic_node][neighbor]['raw_read_count']
         
         somatic_node = somatic_variant + ':1'
         for neighbor in sG.neighbors(somatic_node):
             G.add_edge(somatic_node, neighbor)
             G[somatic_node][neighbor]['barcodes'] = sG[somatic_node][neighbor]['barcodes']
+            G[somatic_node][neighbor]['raw_read_count'] = sG[somatic_node][neighbor]['raw_read_count']
 
         in_phase_normal_cells = set()
         in_phase_mutate_cells = set()
@@ -176,13 +170,13 @@ def analysis_somatic_variant(opt, variant_infos):
                 continue
 
             support_cells = []
-            support_weights = []
+            support_weights = 0
             for neighbor in nx.neighbors(G, somatic_variant + ':1'):
                 barcode = G[somatic_variant+':1'][neighbor]['barcodes']
                 support_cells+=list(barcode.keys())
-                support_weights+=list(barcode.values())
+                support_weights+=G[somatic_variant+':1'][neighbor]['raw_read_count']
             
-            if len(support_cells) < opt.cells or sum(support_weights) < opt.reads: continue
+            if len(support_cells) < opt.cells or support_weights < opt.reads: continue
 
             if all(somatic_alt_connect_to_missense):
                 # in phase
@@ -196,7 +190,7 @@ def analysis_somatic_variant(opt, variant_infos):
                     if 'missense' not in G.nodes[node]: continue
                     if G.nodes[node]['missense'][missense_variant]:
                         in_phase_mutate_cells |= set(G[somatic_variant+':1'][node]['barcodes'].keys())
-            in_phase_germline_missense_pairs.add((opt.id, missense_variant, somatic_variant, gene, ','.join(support_cells), sum(support_weights)))
+            in_phase_germline_missense_pairs.add((opt.id, missense_variant, somatic_variant, gene, ','.join(support_cells), support_weights))
 
             if not any(somatic_alt_connect_to_missense):
                 # out of phase
@@ -210,7 +204,7 @@ def analysis_somatic_variant(opt, variant_infos):
                     if 'missense' not in G.nodes[node]: continue
                     if not G.nodes[node]['missense'][missense_variant]:
                         out_phase_mutate_cells |= set(G[somatic_variant+':1'][node]['barcodes'].keys())
-            out_phase_germline_missense_pairs.add((opt.id, missense_variant, somatic_variant, gene))
+            out_phase_germline_missense_pairs.add((opt.id, missense_variant, somatic_variant, gene, ','.join(support_cells), support_weights))
 
     with open(f'{opt.output_dir}/{opt.id}/{opt.chr}.in.phase.details.tsv', 'w') as f:
         f.write('sample\tgermline\tsomatic\tgene\tcells\tsupports\n')
@@ -222,19 +216,9 @@ def analysis_somatic_variant(opt, variant_infos):
         for (sample, missense_variant, somatic_variant, gene, cells, supports) in out_phase_germline_missense_pairs:
             f.write(f'{sample}\t{missense_variant}\t{somatic_variant}\t{gene}\t{cells}\t{supports}\n')
 
-def main():
+def run(opt):
 
     global chromosome_map, gene_dict
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--id", help="Input ID", required=True)
-    parser.add_argument("--vcf", help="The germline VCF file of `id`", required=True)
-    parser.add_argument("--chr", help="Indicate the chromosome, on which the sabre-somatic will perform one-two hit analysis")
-    parser.add_argument("--output_dir", help="Path to output directory, should be the same as sabre --output_dir. Default ./output", required=False, default='./output')
-    parser.add_argument("--gtf", help="Input GTF file. We recommend you to input a .gtf file rather than a .gtf.gz file, because sabre-somatic will have to depress the .gtf.gz file everytime you input a compressed gtf file.", required=True)
-    parser.add_argument("--cells", help="Threshold on number of supporting cells.", default=1)
-    parser.add_argument("--reads", help="Threshold on number of supporting reads", default=5)
-    opt = parser.parse_args()
 
     # Check Arguments
     if not os.path.exists(opt.vcf):
@@ -248,10 +232,21 @@ def main():
     
     if not os.path.exists(opt.gtf):
         raise ValueError("File not found: {}. Please check input argument --gtf".format(opt.gtf))
+
+    # load chromosome_map, gene_dict
+    if not os.path.exists(f'{opt.gtf}.gene.dict'):
+        init(opt)
     
 
-    gene_name_re = re.compile('gene_name "(.*?)";')
+    gene_dict = pickle.load(open(f'{opt.gtf}.gene.dict', 'rb'))
+    chromosome_map = pickle.load(open(f'{opt.gtf}.chr.dict', 'rb'))
 
+    variant_infos = find_somatic_variants(opt)
+    analysis_somatic_variant(opt, variant_infos)
+
+
+def init(opt):
+    gene_name_re = re.compile('gene_name "(.*?)";')
     gene_dict = {}
     with open(opt.gtf) as f:
         for line in f:
@@ -269,10 +264,41 @@ def main():
 
     for chr_ in chromosome_map:
         chromosome_map[chr_].sort()
+    
+    pickle.dump(gene_dict, open(f'{opt.gtf}.gene.dict', 'wb'))
+    pickle.dump(chromosome_map, open(f'{opt.gtf}.chr.dict', 'wb'))
 
 
-    variant_infos = find_somatic_variants(opt)
-    analysis_somatic_variant(opt, variant_infos)
+def main():
+    parser = argparse.ArgumentParser(prog='sabre-somatic')
+    subparsers = parser.add_subparsers(dest='command', required=True)
+
+    # 子命令 init
+    parser_init = subparsers.add_parser('init', help='Initialize sabre-somatic and generate gtf index file.')
+    parser_init.add_argument('--gtf', help='Input GTF file.', required=True)
+    parser_init.set_defaults(func=init)
+
+    # 子命令 run
+    parser_run = subparsers.add_parser('run', help='Run sabre-somatic analysis')
+    parser_run.add_argument("--id", help="Input ID", required=True)
+    parser_run.add_argument("--vcf", help="The germline VCF file of `id`", required=True)
+    parser_run.add_argument("--chr", help="Indicate the chromosome, on which the sabre-somatic will perform one-two hit analysis")
+    parser_run.add_argument("--output_dir", help="Path to output directory, should be the same as sabre --output_dir. Default ./output", required=False, default='./output')
+    parser_run.add_argument("--gtf", help="Input GTF file. We recommend you to input a .gtf file rather than a .gtf.gz file, because sabre-somatic will have to depress the .gtf.gz file everytime you input a compressed gtf file.", required=True)
+    parser_run.add_argument("--cells", help="Threshold on number of supporting cells.", default=1, type=int)
+    parser_run.add_argument("--reads", help="Threshold on number of supporting reads", default=5, type=int)
+    parser_run.set_defaults(func=run)
+
+    # 解析并调用对应的函数
+
+
+
+    args = parser.parse_args()
+    args.func(args)
+
+
+
 
 if __name__ == '__main__':
     main()
+    
