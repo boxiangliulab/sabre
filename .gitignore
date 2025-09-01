@@ -18,3 +18,5 @@ output
 metric
 build/*
 sabre.egg-info/*
+dist/
+.history/
