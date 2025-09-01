@@ -39,7 +39,6 @@ def find_somatic_variants(opt):
 
     for graph_path in os.listdir(graph_base_dir):
         if 'somatic' not in graph_path: continue
-        if graph_path.split('.')[0] != opt.chr: continue
         try:
             G = pickle.load(open(os.path.join(graph_base_dir, graph_path), 'rb'))
             for node in G.nodes:
@@ -290,8 +289,15 @@ def main():
     parser_run.add_argument("--reads", help="Threshold on number of supporting reads", default=5, type=int)
     parser_run.set_defaults(func=run)
 
+    # 解析并调用对应的函数
+
+
+
     args = parser.parse_args()
     args.func(args)
+
+
+
 
 if __name__ == '__main__':
     main()
