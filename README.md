@@ -26,6 +26,7 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
         * [BAM input](#bam-input)
         * [VCF input](#vcf-input)
         * [Output](#output)
+    * [Sabre for somatic variant filtering](#sabre-for-somatic-variation-filtering)
     * [Sabre for somatic variant analysis](#sabre-for-somatic-variation-analysis)
     * [Sabre for RNA-editing analysis](#sabre-for-rna-editing-analysis)
 * [Options](#options)
@@ -254,6 +255,33 @@ To perform further somatic mutation analysis with `sabre-somatic`, the user shal
 
 For detailed output, and graphical demonstration of ALGs (allele linkage graph), specify `--verbose`. All the conflicted ALGs will be stored in `<output_dir>/<id>/conflict_graphs_graphml/*.graphml`. The resolved conflicted ALGs will be stored in `<output_dir>/<id>/resolved_conflict_graphs_graphml/*.graphml`. The `.graphml` file can be further visualized and analysed using [Gephi](https://gephi.org/).
 
+ ### Sabre-somatic: Sabre for somatic variation filtering
+----
+Although Monopogen has provided filtering strategy for filtering somatic mutation callset, there are still quite many sequencing errors hidden in the callset. In `sabre-somatic`, we can utilize the phasing information to refine the somatic mutation callset, as sequencing errors may evenly distributed on both alleles.
+
+To perform somatic mutation filtering, call `sabre-somatic filter` and indicate the `--id` and `--output_dir` if the output directory is not `./output`. A minimal example is
+
+```bash
+$ sabre-somatic filter --id <id>
+```
+
+This function will generate one output:
+- `refined.somatic.mutations.tsv`
+
+An example output is shown below
+```tsv
+chr19_45523951_somatic_T_A,somatic_mutation
+chr12_7920572_somatic_A_G,sequencing_error
+chr19_18589308_somatic_A_G,sequencing_error
+chr19_8413314_somatic_T_G,sequencing_error
+chr19_34860631_somatic_G_C,sequencing_error
+chr12_7920565_somatic_A_C,sequencing_error
+chr12_7934570_somatic_G_T,sequencing_error
+chr19_40799190_somatic_C_G,sequencing_error
+chr1_198658531_somatic_T_C,sequencing_error
+chr1_1512167_somatic_C_G,sequencing_error
+```
+
  ### Sabre-somatic: Sabre for somatic variation analysis
 ----
 
@@ -383,6 +411,7 @@ We welcome any enquiries on usage of sabre on single-cell edQTL analysis!
 
 
 ### Sabre-somatic Options
+#### `sabre-somatic run`
 * `--id`: The ID of `sabre` run.
 * `--vcf`: The germline VCF file of sample `id`.
 * `--chr`: Indicate the chromosome on which the `sabre-somatic` will be performed on.
@@ -391,6 +420,12 @@ We welcome any enquiries on usage of sabre on single-cell edQTL analysis!
 * `--cells`: Threshold on number of supporting cells.
 * `--reads`: Threshold on number of supporting reads.
 
+#### `sabre-somatic init`
+* `--gtf`: Input GTF file. We recommend you to input a .gtf file rather than a .gtf.gz file, because sabre-somatic will have to depress the file everytime you input a compressed gtf file, which will result in a waste of time and disk space.
+
+#### `sabre-somatic filter`
+* `--id`: The ID of `sabre` run.
+* `--output_dir`: If other `--output_dir` is set when calling `sabre`, this should be set as the same `--output_dir` as `sabre`.
 
 
  ## Citation

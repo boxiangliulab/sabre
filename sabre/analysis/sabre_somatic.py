@@ -9,6 +9,8 @@ import subprocess
 import bisect
 import re
 
+import collections
+
 
 import time
 
@@ -53,7 +55,6 @@ def find_somatic_variants(opt):
         except Exception as e:
             print(e)
     
-    # print(variant_infos)
     return variant_infos
 
 def find_gene(chromosome, pos):
@@ -226,7 +227,7 @@ def run(opt):
         raise ValueError(f"VCF file not found: {opt.vcf}. Please check input argument --vcf")
 
     if not os.path.exists(os.path.join(opt.output_dir, opt.id)):
-        raise ValueError("File not found: {}. Please check input argument --id and --output_dir".format(opt.output_dir, opt.id))
+        raise ValueError("File not found: {}. Please check input argument --id and --output_dir".format(os.path.join(opt.output_dir, opt.id)))
     
     if not opt.gtf.endswith('.gtf') and not opt.gtf.endswith('.gtf.gz'):
         raise ValueError("Invalid argument for --gtf. Please give a valid .gtf file or .gtf.gz file.")
@@ -245,6 +246,82 @@ def run(opt):
     variant_infos = find_somatic_variants(opt)
     analysis_somatic_variant(opt, variant_infos)
 
+
+def dfs_from_node(G, start_node, visited=None, path=None):
+    if visited is None:
+        visited = set()
+    if path is None:
+        path = []
+
+    visited.add(start_node.split(':')[0])
+    path = path + [start_node]
+    neighbors = [n for n in G.neighbors(start_node) if n.split(':')[0] not in visited]
+    if not neighbors:
+        return [path]
+    all_paths = []
+    for neighbor in neighbors:
+        sub_paths = dfs_from_node(G, neighbor, visited.copy(), path)
+        all_paths.extend(sub_paths)
+    return all_paths
+
+def test_graph(G: nx.Graph):
+    somatic_set = []
+    for node in G.nodes:
+        if 'somatic' in node: 
+            somatic_set.append(node)
+    if len(set(map(lambda x: x.split(':')[0], somatic_set))) > 1:
+        return set(), set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes))))
+    
+    if len(somatic_set) != 2:
+        return set(), set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes))))
+    
+    first_visit_paths = dfs_from_node(G, somatic_set[0])
+    second_visit_paths = dfs_from_node(G, somatic_set[1])
+
+    first_colored_nodes = []
+    for i in first_visit_paths: first_colored_nodes.extend(i[1:])
+    
+    second_colored_nodes = []
+    for i in second_visit_paths: second_colored_nodes.extend(i[1:])
+
+    variant_count = collections.defaultdict(int)
+    for i in first_colored_nodes + second_colored_nodes:
+        variant_count[i.split(':')[0]] += 1
+
+    has_equal_3 = False
+    for variant, count in variant_count.items():
+        if count == 4:
+            return set(), set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes))))
+        if count == 3:
+            has_equal_3 = True
+    
+    if has_equal_3:
+        return set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes)))), set()
+    return set(), set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes))))
+
+
+def filter_(opt):
+    graph_base_dir = '{}/{}/conflict_graphs/'.format(opt.output_dir, opt.id)
+    authentic_somatic_variants, sequencing_errors = set(), set()
+
+    for graph_path in os.listdir(graph_base_dir):
+        if 'somatic' not in graph_path: continue
+
+        try:
+            G = pickle.load(open(os.path.join(graph_base_dir, graph_path), 'rb'))
+            print(os.path.join(graph_base_dir, graph_path))
+            sm, se = test_graph(G)
+            print(sm, se)
+            authentic_somatic_variants = authentic_somatic_variants | sm
+            sequencing_errors = sequencing_errors | se
+        except Exception as e:
+            print(e)
+    
+    with open(f'{opt.output_dir}/{opt.id}/refined.somatic.mutations.tsv', 'w') as f:
+        for sv in authentic_somatic_variants:
+            f.write(f'{sv},somatic_mutation\n')
+        for se in sequencing_errors:
+            f.write(f'{se},sequencing_error\n')
 
 def init(opt):
     gene_name_re = re.compile('gene_name "(.*?)";')
@@ -279,6 +356,12 @@ def main():
     parser_init.add_argument('--gtf', help='Input GTF file.', required=True)
     parser_init.set_defaults(func=init)
 
+    # 子命令 init
+    parser_filter = subparsers.add_parser('filter', help='Filter the somatic mutation callset with phasing information.')
+    parser_filter.add_argument("--id", help="Input ID", required=True)
+    parser_filter.add_argument("--output_dir", help="Path to output directory, should be the same as sabre --output_dir. Default ./output", required=False, default='./output')
+    parser_filter.set_defaults(func=filter_)
+
     # 子命令 run
     parser_run = subparsers.add_parser('run', help='Run sabre-somatic analysis')
     parser_run.add_argument("--id", help="Input ID", required=True)
@@ -290,8 +373,10 @@ def main():
     parser_run.add_argument("--reads", help="Threshold on number of supporting reads", default=5, type=int)
     parser_run.set_defaults(func=run)
 
+    # 解析并调用对应的函数
     args = parser.parse_args()
     args.func(args)
+
 
 if __name__ == '__main__':
     main()
