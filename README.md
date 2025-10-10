@@ -68,6 +68,10 @@ Single-cell level haplotype phasing is key to studying clonal hematopoiesis, X c
  $ pip install .
  ```
 
+ Note only install from source code is available before formal publication.
+
+ The typical installation time is ~1 min depends on your on computer/HPC.
+
  ## Example Usage
 
  ### TL;DR
