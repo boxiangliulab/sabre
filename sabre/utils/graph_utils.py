@@ -339,7 +339,7 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], somatic_variants_for
                                 continue
                             fiedler_vector = nx.fiedler_vector(clean_sg, tol=1e-3, normalized=True, method='tracemin_lu', seed=114514)
                             node_fiedler_diff_map = {}
-                            for i, node in enumerate(sg.nodes):
+                            for i, node in enumerate(clean_sg.nodes):
                                 if abs(fiedler_vector[i]) < opt.fiedler_threshold:
                                     node_fiedler_diff_map[node] = 0
                                 node_fiedler_diff_map[node] = min(abs(fiedler_vector[i] - opt.fiedler_threshold), abs(fiedler_vector[i] + opt.fiedler_threshold))
