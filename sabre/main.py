@@ -61,9 +61,9 @@ def sabre(opt, status_dict, return_list = None, status_list=None):
 
         nonconflicted_nodes, phased_vars = graph_utils.extract_nonconflicted_nodes(nonconflicted_graphs)
         
-        resolved_conflicted_nodes, removed_edges = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, somatic_variants_for_phasing_ids, somatic_variants_for_one_two_hit_ids)
+        resolved_conflicted_nodes, removed_edges, node_confidence = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, somatic_variants_for_phasing_ids, somatic_variants_for_one_two_hit_ids)
 
-        total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs, correct_variants, genome_coverage = output_utils.report_phasing_result(opt, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map, variant_allele_map)
+        total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs, correct_variants, genome_coverage = output_utils.report_phasing_result(opt, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map, variant_allele_map, node_confidence)
         if opt.residual_edges:
             output_utils.report_singular_cells(opt, removed_edges, final_graph, allele_linkage_graph, vid_var_map, variant_allele_map, mean=min_mean, var=min_var, n=min_n)
         if opt.allele_linkage:

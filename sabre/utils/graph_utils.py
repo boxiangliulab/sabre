@@ -268,6 +268,7 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], somatic_variants_for
     '''
     resolved_nodes = []
     removed_edges = []
+    node_confidence = collections.defaultdict(int)
     for idx, sg in enumerate(subgraphs):
 
         sg = nx.Graph(sg)
@@ -303,21 +304,21 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], somatic_variants_for
                 
                 residual_graph = nx.Graph() 
                 for components in nx.connected_components(no_one_hit_somatic_sg):
-                    cleared_sg = sg.subgraph(components)
-                    if len(cleared_sg.nodes) <= 1:
+                    clean_sg = sg.subgraph(components)
+                    if len(clean_sg.nodes) <= 1:
                         continue
 
-                    graph_name = list(cleared_sg.nodes)[0]
+                    graph_name = list(clean_sg.nodes)[0]
                     final_partitions = []
                     if opt.shortest_path:
                         if opt.remove_node == 'auto':
-                            if len(cleared_sg.nodes) < 100:
+                            if len(clean_sg.nodes) < 100:
                                 num_remove_node = 1
                             else:
-                                num_remove_node = int(math.floor(len(cleared_sg.nodes)*0.05))
+                                num_remove_node = int(math.floor(len(clean_sg.nodes)*0.05))
                         else:
                             num_remove_node = int(opt.remove_node)
-                        _1_partitions = split_graph_by_common_shortest_path(cleared_sg, graph_name, max_remove_node=num_remove_node)
+                        _1_partitions = split_graph_by_common_shortest_path(clean_sg, graph_name, max_remove_node=num_remove_node)
 
                         for partition in _1_partitions:
                             if find_conflict_alleles(sg.subgraph(partition)) == []:
@@ -325,20 +326,34 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], somatic_variants_for
                                 final_partitions.append(partition)
                                 continue
                             if opt.method == 'fiedler':
-                                final_partitions += split_graph_by_fiedler_vector(cleared_sg.subgraph(partition), graph_name, threshold=opt.fiedler_threshold)
+                                final_partitions += split_graph_by_fiedler_vector(clean_sg.subgraph(partition), graph_name, threshold=opt.fiedler_threshold)
                             else:
-                                final_partitions += split_graph_by_min_cut(cleared_sg.subgraph(partition), graph_name)
-                    else:
-                        
+                                final_partitions += split_graph_by_min_cut(clean_sg.subgraph(partition), graph_name)
+                    else: 
                         if opt.method == 'fiedler':
-                            final_partitions += split_graph_by_fiedler_vector(cleared_sg, graph_name, threshold=opt.fiedler_threshold)
+
+                            if find_conflict_alleles(sg) == []:
+                                for node in sg.nodes:
+                                    node_confidence[node] = 1
+                                final_partitions += nx.connected_components(sg)
+                                continue
+                            fiedler_vector = nx.fiedler_vector(clean_sg, tol=1e-3, normalized=True, method='tracemin_lu', seed=114514)
+                            node_fiedler_diff_map = {}
+                            for i, node in enumerate(sg.nodes):
+                                if abs(fiedler_vector[i]) < opt.fiedler_threshold:
+                                    node_fiedler_diff_map[node] = 0
+                                node_fiedler_diff_map[node] = min(abs(fiedler_vector[i] - opt.fiedler_threshold), abs(fiedler_vector[i] + opt.fiedler_threshold))
+                            result_partition = split_graph_by_fiedler_vector(clean_sg, graph_name, threshold=opt.fiedler_threshold)
+                            for partition in result_partition:
+                                for node in partition:
+                                    node_confidence[node] = calculate_confidence_by_fieder_component(node_fiedler_diff_map[node])
                         else:
-                            final_partitions += split_graph_by_min_cut(cleared_sg, graph_name)
+                            final_partitions += split_graph_by_min_cut(clean_sg, graph_name)
                     
                     residual_graph = nx.Graph(sg)
 
                     for partition in final_partitions:
-                        resolved_subgraph = cleared_sg.subgraph(partition)
+                        resolved_subgraph = clean_sg.subgraph(partition)
                         if opt.verbose:
                             visualize_graph(opt, sg, '{}_1'.format(graph_name))
                             visualize_graph(opt, resolved_subgraph, '{}_0'.format(graph_name))
@@ -348,7 +363,12 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], somatic_variants_for
             for component in nx.connected_components(residual_graph):
                 if len(component) > 1:
                     removed_edges.append(residual_graph.subgraph(component))        
-    return resolved_nodes, removed_edges
+    return resolved_nodes, removed_edges, dict(node_confidence)
+
+def calculate_confidence_by_fieder_component(val, beta=0.5, k=1):
+    if val == 0: return 0
+    return k * 1/(np.exp(-beta * val))
+
 
 def extract_nonconflicted_nodes(subgraphs: list[nx.Graph]):
     '''
