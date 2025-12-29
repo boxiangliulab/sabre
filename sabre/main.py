@@ -53,7 +53,7 @@ def sabre(opt, status_dict, return_list = None, status_list=None):
         # We only need to calculate whether the $end$ of an variant lies between a read.
         allele_linkage_map, edge_barcode_map, phasable_variants, allele_linkage_read_count_map, allele_read_count, variant_allele_map = algo_utils.read_var_map(opt, reads, variants, somatic_variants)
 
-        allele_linkage_graph, min_mean, min_var, min_n = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map, allele_linkage_read_count_map, allele_read_count)
+        allele_linkage_graph, min_mean, min_var, min_n, node_confidence = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map, allele_linkage_read_count_map, allele_read_count)
 
         allele_subgraphs, total_possible_pairs = graph_utils.find_connected_components(allele_linkage_graph)
 
@@ -61,7 +61,7 @@ def sabre(opt, status_dict, return_list = None, status_list=None):
 
         nonconflicted_nodes, phased_vars = graph_utils.extract_nonconflicted_nodes(nonconflicted_graphs)
         
-        resolved_conflicted_nodes, removed_edges, node_confidence = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, somatic_variants_for_phasing_ids, somatic_variants_for_one_two_hit_ids)
+        resolved_conflicted_nodes, removed_edges, node_confidence = graph_utils.resolve_conflict_graphs(opt, conflicted_graphs, somatic_variants_for_phasing_ids, node_confidence)
 
         total_hap, correct_hap, total_predict, correct_predict, total_nodes, final_graph, predict_pairs, correct_pairs, correct_variants, genome_coverage = output_utils.report_phasing_result(opt, nonconflicted_nodes, resolved_conflicted_nodes, vid_var_map, variant_allele_map, node_confidence)
         if opt.residual_edges:

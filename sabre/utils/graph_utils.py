@@ -51,7 +51,14 @@ def create_graph(opt, allele_linkage_map, var_barcode_map, allele_linkage_read_c
             G.nodes[node]['allele_read_count'] = allele_read_count[node]
     
     G = graph_aggregation_and_update(opt, G)
-    return G, np.mean(barcode_link_weights), np.var(barcode_link_weights, ddof=0), len(barcode_link_weights)
+    node_confidence = collections.defaultdict(int)
+    node_popularities = []
+    for node in G.nodes:
+        node_popularities.append(G.nodes[node]['popularity'])
+    for node in G.nodes:
+        node_confidence[node] = G.nodes[node]['popularity']/max(node_popularities)
+
+    return G, np.mean(barcode_link_weights), np.var(barcode_link_weights, ddof=0), len(barcode_link_weights), node_confidence
 
 def visualize_graph(opt, G:nx.Graph, save_name):
     '''
@@ -259,7 +266,7 @@ def calculate_graph_difference(G:nx.Graph, H:nx.Graph):
     G.remove_edges_from(list(H.edges))
     return G
 
-def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], somatic_variants_for_phasing_ids, somatic_variants_for_one_two_hit_ids):
+def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], somatic_variants_for_phasing_ids, node_confidence:dict):
     '''
     First, remove edges with 5% minimum edges weights.
     For sub-graphs with more than 100 nodes, remove no more than 0.2 * #nodes by split_graph_by_common_shortest_path.
@@ -268,7 +275,6 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], somatic_variants_for
     '''
     resolved_nodes = []
     removed_edges = []
-    node_confidence = collections.defaultdict(int)
     for idx, sg in enumerate(subgraphs):
 
         sg = nx.Graph(sg)
