@@ -365,9 +365,9 @@ def resolve_conflict_graphs(opt, subgraphs: list[nx.Graph], somatic_variants_for
                     removed_edges.append(residual_graph.subgraph(component))        
     return resolved_nodes, removed_edges, dict(node_confidence)
 
-def calculate_confidence_by_fieder_component(val, beta=0.5, k=1):
+def calculate_confidence_by_fieder_component(val, beta=1, k=1):
     if val == 0: return 0
-    return k * 1/(np.exp(-beta * val))
+    return k * 1/(np.exp(beta * val))
 
 
 def extract_nonconflicted_nodes(subgraphs: list[nx.Graph]):
