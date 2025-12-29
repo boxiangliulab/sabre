@@ -30,7 +30,7 @@ def output_graph_weights(opt, G:nx.Graph, vid_var_map):
     np.save('right_edge_weights', right_edge_weights)
     np.save('wrong_edge_weights', wrong_edge_weights)
 
-def create_graph(opt, allele_linkage_map, var_barcode_map, allele_linkage_read_count_map, allele_read_count):
+def create_graph(opt, allele_linkage_map, var_barcode_map, allele_linkage_read_count_map, allele_read_count, allele_confidence_count):
     '''
     Use allele linkage to create allele linkage graph.
     Notablly, in comparison with phaser, informations of linkage by read are completely reserved.
@@ -52,11 +52,9 @@ def create_graph(opt, allele_linkage_map, var_barcode_map, allele_linkage_read_c
     
     G = graph_aggregation_and_update(opt, G)
     node_confidence = collections.defaultdict(int)
-    node_popularities = []
-    for node in G.nodes:
-        node_popularities.append(G.nodes[node]['popularity'])
-    for node in G.nodes:
-        node_confidence[node] = G.nodes[node]['popularity']/max(node_popularities)
+    max_allele_read_count = max(list(allele_confidence_count.values()))
+    for node in allele_confidence_count:
+        node_confidence[node] = np.log(allele_confidence_count[node])/np.log(max_allele_read_count)
 
     return G, np.mean(barcode_link_weights), np.var(barcode_link_weights, ddof=0), len(barcode_link_weights), node_confidence
 

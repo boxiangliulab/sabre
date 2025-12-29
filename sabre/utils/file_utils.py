@@ -143,21 +143,21 @@ def get_base_pair_by_var_pos(opt, read, var_pos):
             pos = var_pos - left
             base_pair = read[pos]
             qual = quals[pos]
-            bp_qual_map[base_pair].append(qual)
+            bp_qual_map[base_pair].append(ord(qual)-33)
 
     if len(bp_qual_map) == 1:
-        return [list(bp_qual_map.keys())[0] for i in range(len(list(bp_qual_map.values())[0]))] if ord(max(list(bp_qual_map.values()))[0]) - 33 >= QUAL_THRESHOLD else None
+        return (list(bp_qual_map.keys())[0], list(bp_qual_map.values())[0]) if max(list(bp_qual_map.values()))[0] >= QUAL_THRESHOLD else (None, None)
     else:
         # pros = functools.reduce(lambda a,b: a*b,list(map(lambda x: 10 ** (-(ord(x)-33)/10),list(bp_qual_map.values())[0])))
         # cons = functools.reduce(lambda a,b: a*b,list(map(lambda x: 10 ** (-(ord(x)-33)/10),list(bp_qual_map.values())[1])))
         # leading_bp = [list(bp_qual_map.keys())[0] for i in range(len(list(bp_qual_map.values())[0]))] if pros < cons else [list(bp_qual_map.keys())[1] for i in range(len(list(bp_qual_map.values())[1]))]
         # print(pros, cons, min(pros, cons)/(pros + cons), str(bp_qual_map))
-        pros = sum(list(map(lambda x: -(ord(x)-33)/10, list(bp_qual_map.values())[0])))
-        cons = sum(list(map(lambda x: -(ord(x)-33)/10, list(bp_qual_map.values())[1])))
-        leading_bp = [list(bp_qual_map.keys())[0] for i in range(len(list(bp_qual_map.values())[0]))] if pros < cons else [list(bp_qual_map.keys())[1] for i in range(len(list(bp_qual_map.values())[1]))]
+        pros = sum(list(map(lambda x: -x/10, list(bp_qual_map.values())[0])))
+        cons = sum(list(map(lambda x: -x/10, list(bp_qual_map.values())[1])))
+        leading_bp = list(bp_qual_map.keys())[0] if pros < cons else list(bp_qual_map.keys())[1]
         if 10 ** -abs(pros-cons) < opt.base_conflict_threshold:
-            return leading_bp
-    return None
+            return leading_bp, bp_qual_map[leading_bp]
+    return None, None
 
 def load_barcode_list(opt):
     '''

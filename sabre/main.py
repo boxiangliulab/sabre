@@ -51,9 +51,9 @@ def sabre(opt, status_dict, return_list = None, status_list=None):
         reads = file_utils.generate_reads(opt, output_sam_paths)
         # As long as we limit the max length of alternative base pairs into 1.
         # We only need to calculate whether the $end$ of an variant lies between a read.
-        allele_linkage_map, edge_barcode_map, phasable_variants, allele_linkage_read_count_map, allele_read_count, variant_allele_map = algo_utils.read_var_map(opt, reads, variants, somatic_variants)
+        allele_linkage_map, edge_barcode_map, phasable_variants, allele_linkage_read_count_map, allele_read_count, variant_allele_map, allele_confidence_count = algo_utils.read_var_map(opt, reads, variants, somatic_variants)
 
-        allele_linkage_graph, min_mean, min_var, min_n, node_confidence = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map, allele_linkage_read_count_map, allele_read_count)
+        allele_linkage_graph, min_mean, min_var, min_n, node_confidence = graph_utils.create_graph(opt, allele_linkage_map, edge_barcode_map, allele_linkage_read_count_map, allele_read_count, allele_confidence_count)
 
         allele_subgraphs, total_possible_pairs = graph_utils.find_connected_components(allele_linkage_graph)
 
