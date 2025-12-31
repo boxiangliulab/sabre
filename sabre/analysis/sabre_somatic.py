@@ -306,9 +306,9 @@ def filter_(opt):
 
         try:
             G = pickle.load(open(os.path.join(graph_base_dir, graph_path), 'rb'))
-            print(os.path.join(graph_base_dir, graph_path))
+            # print(os.path.join(graph_base_dir, graph_path))
             sm, se = test_graph(G)
-            print(sm, se)
+            # print(sm, se)
             authentic_somatic_variants = authentic_somatic_variants | sm
             sequencing_errors = sequencing_errors | se
         except Exception as e:

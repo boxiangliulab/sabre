@@ -142,7 +142,7 @@ def get_base_pair_by_var_pos(opt, read, var_pos):
         if var_pos <= right and var_pos >= left:
             pos = var_pos - left
             base_pair = read[pos]
-            qual = quals[pos]
+            qual = quals[pos] if len(quals) == len(read) else chr(QUAL_THRESHOLD + 33)
             bp_qual_map[base_pair].append(ord(qual)-33)
 
     if len(bp_qual_map) == 1:
@@ -383,7 +383,7 @@ def generate_reads(opt, output_sam_paths):
                 columns = line.strip('\n').split('\t')
                 col_qname, col_flag, col_rname, col_pos, col_mapq, col_cigar, col_rnext, col_pnext, col_tlen, col_seq, col_qual = columns[:11]
                 other_columns = columns[11:]
-                alignment_score = -100
+                alignment_score = -1
 
                 for col in other_columns:
                     if col.startswith('AS'):
@@ -404,7 +404,7 @@ def generate_reads(opt, output_sam_paths):
         if len(alignment_scores) == 0:
             raise RuntimeError("No reads are taken. Please check whether the BAM file is corrupted or input_type is correctly given.")
 
-        ALIGNMENT_FILTER = np.percentile(alignment_scores, opt.as_quality*100) if opt.as_quality > 0 else 0
+        ALIGNMENT_FILTER = np.percentile(alignment_scores, opt.as_quality*100) if opt.as_quality > 0 else -2
         for umi_barcode, lines in umibarcode_line_map.items():
             yield generate_read_from_bamline(umi_barcode=umi_barcode, bamline_list=lines)
 
