@@ -8,6 +8,7 @@ import argparse
 import subprocess
 import bisect
 import re
+import functools
 
 import collections
 
@@ -275,29 +276,25 @@ def test_graph(G: nx.Graph):
     if len(somatic_set) != 2:
         return set(), set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes))))
     
+    variant_color_map = collections.defaultdict(set)
     first_visit_paths = dfs_from_node(G, somatic_set[0])
+    blue_pills = list(set(functools.reduce(lambda x, y: x+y, first_visit_paths)))
+    for bp in blue_pills:
+        variant, geno = bp.split(':')
+        variant_color_map[variant].add(f'blue:{geno}')
+
     second_visit_paths = dfs_from_node(G, somatic_set[1])
+    red_pills = list(set(functools.reduce(lambda x, y: x+y, second_visit_paths)))
+    for bp in red_pills:
+        variant, geno = bp.split(':')
+        variant_color_map[variant].add(f'red:{geno}')
 
-    first_colored_nodes = []
-    for i in first_visit_paths: first_colored_nodes.extend(i[1:])
-    
-    second_colored_nodes = []
-    for i in second_visit_paths: second_colored_nodes.extend(i[1:])
-
-    variant_count = collections.defaultdict(int)
-    for i in first_colored_nodes + second_colored_nodes:
-        variant_count[i.split(':')[0]] += 1
-
-    has_equal_3 = False
-    for variant, count in variant_count.items():
+    for variant, pill_box in variant_color_map.items():
+        count = len(pill_box)
         if count == 4:
             return set(), set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes))))
-        if count == 3:
-            has_equal_3 = True
-    
-    if has_equal_3:
-        return set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes)))), set()
-    return set(), set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes))))
+
+    return set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes)))), set()
 
 
 def filter_(opt):

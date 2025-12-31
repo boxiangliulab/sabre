@@ -335,7 +335,7 @@ def write_phasing_result_to_vcf(opt, variant_hap_map, variant_phase_map):
             elif line.startswith("#CHROM"):
                 if "##FORMAT=<ID=SG," not in format_text: output_file.write("##FORMAT=<ID=SG,Number=1,Type=String,Description=\"Sabre Local Genotype\">\n");
                 if "##FORMAT=<ID=SB," not in format_text: output_file.write("##FORMAT=<ID=SB,Number=1,Type=String,Description=\"Sabre Local Block\">\n");
-                if "##FORMAT=<ID=SI," not in format_text: output_file.write("##FORMAT=<ID=SI,Number=1,Type=String,Description=\"Sabre Local Block Index (unique for each block)\">\n")
+                if "##FORMAT=<ID=PS," not in format_text: output_file.write("##FORMAT=<ID=PS,Number=1,Type=String,Description=\"Sabre Local Block Index (unique for each block)\">\n")
                 output_file.write(line)
             elif line.startswith('#'):
                 output_file.write(line)
@@ -345,7 +345,7 @@ def write_phasing_result_to_vcf(opt, variant_hap_map, variant_phase_map):
                 col_chr, col_pos, col_id, col_ref, col_alt, col_qual, col_filter, col_info, col_format, col_sample = columns
                 if col_chr == opt.chr:
                     current_vid = opt.sep.join([col_chr, col_pos, '.', col_ref, col_alt])
-                    col_format = ':'.join(col_format.split(':') + ['SG', 'SB', 'SI'])
+                    col_format = ':'.join(col_format.split(':') + ['SG', 'SB', 'PS'])
                     if current_vid in variant_hap_map.keys():
                         sg = variant_phase_map[current_vid]
                         sb = variant_hap_map[current_vid]
