@@ -270,11 +270,13 @@ def test_graph(G: nx.Graph):
     for node in G.nodes:
         if 'somatic' in node: 
             somatic_set.append(node)
-    if len(set(map(lambda x: x.split(':')[0], somatic_set))) > 1:
-        return set(), set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes))))
-    
-    if len(somatic_set) != 2:
-        return set(), set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes))))
+    putative_somatic_variant_edge_count_map = collections.defaultdict(lambda: [0, 0])
+    for node in somatic_set:
+        variant, geno = node.split(':')
+        putative_somatic_variant_edge_count_map[variant][int(geno)] = len([n for n in G.neighbors(node)])
+
+    if len(set(map(lambda x: x.split(':')[0], somatic_set))) > 1 or len(somatic_set) != 2:
+        return set(), set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes)))), putative_somatic_variant_edge_count_map
     
     variant_color_map = collections.defaultdict(set)
     first_visit_paths = dfs_from_node(G, somatic_set[0])
@@ -292,33 +294,32 @@ def test_graph(G: nx.Graph):
     for variant, pill_box in variant_color_map.items():
         count = len(pill_box)
         if count == 4:
-            return set(), set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes))))
+            return set(), set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes)))), putative_somatic_variant_edge_count_map
 
-    return set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes)))), set()
+    return set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes)))), set(), putative_somatic_variant_edge_count_map
 
 
 def filter_(opt):
     graph_base_dir = '{}/{}/conflict_graphs/'.format(opt.output_dir, opt.id)
-    authentic_somatic_variants, sequencing_errors = set(), set()
-
+    output_result_list = []
     for graph_path in os.listdir(graph_base_dir):
         if 'somatic' not in graph_path: continue
 
         try:
             G = pickle.load(open(os.path.join(graph_base_dir, graph_path), 'rb'))
-            # print(os.path.join(graph_base_dir, graph_path))
-            sm, se = test_graph(G)
-            # print(sm, se)
-            authentic_somatic_variants = authentic_somatic_variants | sm
-            sequencing_errors = sequencing_errors | se
+            sm_set, se_set, edge_count_map = test_graph(G)
+            for sm in sm_set:
+                output_result_list.append(f'{opt.id}\t{sm}\t{max(edge_count_map[sm])}\t{min(edge_count_map[sm])}\t{1}\n')
+
+            for sm in se_set:
+                output_result_list.append(f'{opt.id}\t{sm}\t{max(edge_count_map[sm])}\t{min(edge_count_map[sm])}\t{0}\n')
         except Exception as e:
             print(e)
     
     with open(f'{opt.output_dir}/{opt.id}/refined.somatic.mutations.tsv', 'w') as f:
-        for sv in authentic_somatic_variants:
-            f.write(f'{sv},somatic_mutation\n')
-        for se in sequencing_errors:
-            f.write(f'{se},sequencing_error\n')
+        f.write('ID\tvariant\Ref\tAlt\tResult\n')
+        for line in output_result_list:
+            f.write(line)
 
 def init(opt):
     gene_name_re = re.compile('gene_name "(.*?)";')
