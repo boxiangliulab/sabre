@@ -200,7 +200,6 @@ def load_vcf(opt):
     vcf_out.close()
     processed_vcf_path = vcf_out.name
 
-
     # Mean to add black-list to prevent unnecessary calculating.
     # However I don't want to implement this
 
@@ -290,7 +289,8 @@ def generate_variants(opt, processed_vcf_path):
     somatic_variants_for_one_two_hit = []
     somatic_variants_for_one_two_hit_ids = set()
     if opt.mono is not None:
-        with open(opt.mono) as f:
+        with open(opt.mono) as f, open(f'./{opt.output_dir}/{opt.id}/chr{opt.chr}.mono.filtering.csv', 'w') as g:
+            g.write(f'chr\tpos\tref\talt\tsvm\tld\tbaf\tdepth_ref\tdepth_alt\tbeta\tvcf_classification\tsabre_classification\t\n')
             for line in f:
                 if line.startswith('chr,pos'): continue
                 
@@ -303,22 +303,38 @@ def generate_variants(opt, processed_vcf_path):
                 baf_score = float(items[11])
                 depth_ref = int(items[5])
                 depth_alt = int(items[6])
+                confidence = beta.cdf(0.6, depth_ref+1, depth_alt+1) - beta.cdf(0.4, depth_ref+1, depth_alt+1)
+                g.write(f'{chr_}\t{pos}\t{ref}\t{alt}\t{svm_score}\t{ld_score}\t{baf_score}\t{depth_ref}\t{depth_alt}\t{confidence}\t')
 
-                if svm_score < opt.mono_svm: continue
-                if depth_alt < opt.mono_alt or depth_ref < opt.mono_ref: continue
-                if ld_score < opt.mono_ld: 
-                    confidence = beta.cdf(0.6, depth_ref+1, depth_alt+1) - beta.cdf(0.4, depth_ref+1, depth_alt+1)
-                    if confidence < 0.9: continue
-                    tmp_variant = create_variant(opt.sep, chr_, pos, '.', ref, alt, 100, '0/1', False)
-                    if tmp_variant.unique_id in vid_var_map.keys():
-                        vid_var_map.pop(tmp_variant.unique_id)
-                    somatic_variants_for_phasing.append(create_variant(opt.sep, chr_, pos, 'somatic', ref, alt, 100, '0/1', False))
+                tmp_variant = create_variant(opt.sep, chr_, pos, '.', ref, alt, 100, '0/1', False)
+                if tmp_variant.unique_id in vid_var_map.keys():
+                    g.write('GE\t')
                 else:
-                    if baf_score < opt.mono_baf_l or baf_score > opt.mono_baf_u: continue
+                    g.write('NE\t')
 
-                    tmp_variant = create_variant(opt.sep, chr_, pos, '.', ref, alt, 100, '0/1', False)
+                if svm_score < opt.mono_svm: 
+                    g.write('SE\n')
+                    continue
+                if depth_alt < opt.mono_alt or depth_ref < opt.mono_ref: 
+                    g.write('SE\n')
+                    continue
+                if ld_score < opt.mono_ld: 
+                    if confidence < 0.9: 
+                        g.write('SE\n')
+                        continue
+                    g.write('DE\n')
                     if tmp_variant.unique_id in vid_var_map.keys():
-                        vid_var_map.pop(tmp_variant.unique_id)
+                        continue
+                        # vid_var_map.pop(tmp_variant.unique_id)
+                    somatic_variants_for_phasing.append(create_variant(opt.sep, chr_, pos, 'denovo', ref, alt, 100, '0/1', False))
+                else:
+                    if baf_score < opt.mono_baf_l or baf_score > opt.mono_baf_u: 
+                        g.write('SE\n')
+                        continue
+                    g.write('SO\n')
+                    if tmp_variant.unique_id in vid_var_map.keys():
+                        continue
+                        # vid_var_map.pop(tmp_variant.unique_id)
                     somatic_variants_for_one_two_hit.append(create_variant(opt.sep, chr_, pos, 'somatic', ref, alt, 100, '0/1', False))
 
     print('Received {} Germline variants in total, {} variants taken, {} variants omitted.'.\

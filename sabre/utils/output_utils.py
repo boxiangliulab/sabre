@@ -100,7 +100,6 @@ def report_phasing_result(opt, nonconflicted_nodes, resolved_conflicted_nodes, v
     final_graph = de_duplicate(final_graph, nonconflicted_nodes, 'non', variant_allele_map)
     final_graph = de_duplicate(final_graph, resolved_conflicted_nodes, 'con', variant_allele_map)
 
-    final_haplotypes = []
     final_haplotypes = list(nx.connected_components(final_graph))
 
     idx = 0
