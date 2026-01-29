@@ -266,17 +266,15 @@ def dfs_from_node(G, start_node, visited=None, path=None):
     return all_paths
 
 def test_graph(G: nx.Graph):
-    somatic_set = []
-    for node in G.nodes:
-        if 'somatic' in node: 
-            somatic_set.append(node)
+    somatic_set = set(filter(lambda x: 'somatic' in x, G.nodes))
+    somatic_variants = set(map(lambda x: x.split(':')[0], somatic_set))
     putative_somatic_variant_edge_count_map = collections.defaultdict(lambda: [0, 0])
     for node in somatic_set:
         variant, geno = node.split(':')
         putative_somatic_variant_edge_count_map[variant][int(geno)] = len([n for n in G.neighbors(node)])
 
-    if len(set(map(lambda x: x.split(':')[0], somatic_set))) > 1 or len(somatic_set) != 2:
-        return set(), set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes)))), putative_somatic_variant_edge_count_map
+    if len(somatic_variants) > 1 or len(somatic_set) != 2:
+        return set(), somatic_variants, set(), putative_somatic_variant_edge_count_map
     
     variant_color_map = collections.defaultdict(set)
     first_visit_paths = dfs_from_node(G, somatic_set[0])
@@ -294,9 +292,9 @@ def test_graph(G: nx.Graph):
     for variant, pill_box in variant_color_map.items():
         count = len(pill_box)
         if count == 4:
-            return set(), set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes)))), putative_somatic_variant_edge_count_map
+            return set(), set(), somatic_variants, putative_somatic_variant_edge_count_map
 
-    return set(map(lambda x: x.split(':')[0],(filter(lambda x: 'somatic' in x, G.nodes)))), set(), putative_somatic_variant_edge_count_map
+    return somatic_variants, set(), set(), putative_somatic_variant_edge_count_map
 
 
 def filter_(opt):
@@ -307,12 +305,15 @@ def filter_(opt):
 
         try:
             G = pickle.load(open(os.path.join(graph_base_dir, graph_path), 'rb'))
-            sm_set, se_set, edge_count_map = test_graph(G)
+            sm_set, ne_set, se_set, edge_count_map = test_graph(G)
             for sm in sm_set:
-                output_result_list.append(f'{opt.id}\t{sm}\t{max(edge_count_map[sm])}\t{min(edge_count_map[sm])}\t{1}\n')
+                output_result_list.append(f'{opt.id}\t{sm}\t{max(edge_count_map[sm])}\t{min(edge_count_map[sm])}\tSomatic Mutation\n')
+
+            for sm in ne_set:
+                output_result_list.append(f'{opt.id}\t{sm}\t{max(edge_count_map[sm])}\t{min(edge_count_map[sm])}\tNo Enough Evidence\n')
 
             for sm in se_set:
-                output_result_list.append(f'{opt.id}\t{sm}\t{max(edge_count_map[sm])}\t{min(edge_count_map[sm])}\t{0}\n')
+                output_result_list.append(f'{opt.id}\t{sm}\t{max(edge_count_map[sm])}\t{min(edge_count_map[sm])}\tSequencing Error\n')
         except Exception as e:
             print(e)
     
