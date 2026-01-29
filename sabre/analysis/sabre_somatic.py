@@ -248,7 +248,7 @@ def run(opt):
     analysis_somatic_variant(opt, variant_infos)
 
 
-def dfs_from_node(G, start_node, visited=None, path=None):
+def dfs_from_node(G, start_node, visited=None, path=None, max_length=3):
     if visited is None:
         visited = set()
     if path is None:
@@ -257,7 +257,7 @@ def dfs_from_node(G, start_node, visited=None, path=None):
     visited.add(start_node.split(':')[0])
     path = path + [start_node]
     neighbors = [n for n in G.neighbors(start_node) if n.split(':')[0] not in visited]
-    if not neighbors:
+    if not neighbors or len(path) >= max_length:
         return [path]
     all_paths = []
     for neighbor in neighbors:
@@ -316,7 +316,8 @@ def filter_(opt):
                 output_result_list.append(f'{opt.id}\t{sm}\t{max(edge_count_map[sm])}\t{min(edge_count_map[sm])}\tSequencing Error\n')
         except Exception as e:
             print(e)
-    
+
+    print('Success!')
     with open(f'{opt.output_dir}/{opt.id}/refined.somatic.mutations.tsv', 'w') as f:
         f.write('ID\tvariant\Ref\tAlt\tResult\n')
         for line in output_result_list:
